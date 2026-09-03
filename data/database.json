@@ -1,0 +1,521 @@
+{
+  "expenses": [
+    {
+      "id": "2603c9ff-1450-4de5-b4f6-849ba22fb618",
+      "userId": "demo_judge",
+      "amount": 4,
+      "currency": "USD",
+      "category": "Кафе и рестораны",
+      "description": "Coffee",
+      "date": "2026-09-03",
+      "createdAt": 1788408709988,
+      "rawMessage": "coffee 4 usd"
+    },
+    {
+      "id": "58e50f15-d806-4a31-905b-01af75bea0b6",
+      "userId": "demo_judge",
+      "amount": 10,
+      "currency": "RUB",
+      "category": "Продукты",
+      "description": "Нони гарм",
+      "date": "2026-09-03",
+      "createdAt": 1788408705405,
+      "rawMessage": "нони гарм 10"
+    },
+    {
+      "id": "51881983-3aad-4cc2-8819-a788f77dafbe",
+      "userId": "demo_judge",
+      "amount": 350,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Кофе",
+      "date": "2026-09-03",
+      "createdAt": 1788408697858,
+      "rawMessage": "кофе 350"
+    },
+    {
+      "id": "00a0cc2d-edc3-49ba-9bf7-c1ce04b9f947",
+      "userId": "7930423139",
+      "amount": 500,
+      "currency": "RUB",
+      "category": "Другое",
+      "description": "Либос сомонӣ",
+      "date": "2026-09-03",
+      "createdAt": 1788408693035,
+      "rawMessage": "Либос 500 сомонӣ"
+    },
+    {
+      "id": "948f8db6-7172-4ce5-9cb4-b4299cc08ade",
+      "userId": "7930423139",
+      "amount": 1500,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "​​ бензин",
+      "date": "2026-09-03",
+      "createdAt": 1788407336927,
+      "rawMessage": "​​1500 RUB бензин"
+    },
+    {
+      "id": "31ff698f-53b7-48f1-971f-28796041eb42",
+      "userId": "7930423139",
+      "amount": 350,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Кофе",
+      "date": "2026-09-03",
+      "createdAt": 1788407306426,
+      "rawMessage": "кофе 350"
+    },
+    {
+      "id": "740c6b84-6fe4-4e04-b4a5-884c41b18eb3",
+      "userId": "7930423139",
+      "amount": 350,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Кофе",
+      "date": "2026-09-03",
+      "createdAt": 1788407160248,
+      "rawMessage": "Кофе 350"
+    },
+    {
+      "id": "82ccc2c1-f3bf-427c-85c5-b9d115ad5bcc",
+      "userId": "7930423139",
+      "amount": 200,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "Бензин",
+      "date": "2026-09-03",
+      "createdAt": 1788407148355,
+      "rawMessage": "Бензин 200"
+    },
+    {
+      "id": "1c02038b-f39a-4d8c-a7df-2a0409f88ca6",
+      "userId": "7930423139",
+      "amount": 200,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "​бензин",
+      "date": "2026-09-03",
+      "createdAt": 1788407073105,
+      "rawMessage": "​бензин 200"
+    },
+    {
+      "id": "e010afa1-6e64-4827-8b52-2b6e9d243114",
+      "userId": "7930423139",
+      "amount": 200,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "​бензин",
+      "date": "2026-09-03",
+      "createdAt": 1788407073014,
+      "rawMessage": "​бензин 200"
+    },
+    {
+      "id": "a994fec5-fc3e-43da-90b4-d79e0feca60d",
+      "userId": "7930423139",
+      "amount": 200,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "Добавлено: бензин",
+      "date": "2026-09-03",
+      "createdAt": 1788407065694,
+      "rawMessage": "Добавлено: бензин 200"
+    },
+    {
+      "id": "96e7d978-1e48-4de6-9786-7973cd69e5ac",
+      "userId": "7930423139",
+      "amount": 200,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "Добавлено: бензин",
+      "date": "2026-09-03",
+      "createdAt": 1788407065609,
+      "rawMessage": "Добавлено: бензин 200"
+    },
+    {
+      "id": "4c566a63-288e-4d25-ae49-60bf701d139b",
+      "userId": "demo_judge",
+      "amount": 200,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "Добавлено: бензин",
+      "date": "2026-09-03",
+      "createdAt": 1788407030829,
+      "rawMessage": "Добавлено: бензин 200"
+    },
+    {
+      "id": "ee14f6e4-278c-479a-b7d1-8895ccf51ca3",
+      "userId": "7930423139",
+      "amount": 200,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "​бензин",
+      "date": "2026-09-03",
+      "createdAt": 1788406926341,
+      "rawMessage": "​бензин 200"
+    },
+    {
+      "id": "064996c0-5373-4846-9ff1-217257332ff6",
+      "userId": "demo_judge",
+      "amount": 350,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Кофе",
+      "date": "2026-09-03",
+      "createdAt": 1788406725518,
+      "rawMessage": "кофе 350"
+    },
+    {
+      "id": "7e504863-3c78-4a83-a5af-b7c023938cf3",
+      "userId": "demo_judge",
+      "amount": 900,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "Такси работа",
+      "date": "2026-09-03",
+      "createdAt": 1788406069545,
+      "rawMessage": "такси 900 работа"
+    },
+    {
+      "id": "bf8a9acc-3bb8-412b-af9e-9c581ee272c5",
+      "userId": "demo_judge",
+      "amount": 350,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Кофе",
+      "date": "2026-09-03",
+      "createdAt": 1788405575895,
+      "rawMessage": "кофе 350"
+    },
+    {
+      "id": "demo_1",
+      "userId": "demo_judge",
+      "amount": 350,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Кофе и круассан",
+      "date": "2026-09-03",
+      "createdAt": 1788404840771,
+      "merchant": "и"
+    },
+    {
+      "id": "demo_2",
+      "userId": "demo_judge",
+      "amount": 720,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "Такси в офис",
+      "date": "2026-09-03",
+      "createdAt": 1788404840771,
+      "merchant": "в"
+    },
+    {
+      "id": "demo_3",
+      "userId": "demo_judge",
+      "amount": 2450,
+      "currency": "RUB",
+      "category": "Продукты",
+      "description": "Супермаркет ВкусВилл",
+      "date": "2026-09-02",
+      "createdAt": 1788318440771,
+      "merchant": "ВкусВилл"
+    },
+    {
+      "id": "demo_4",
+      "userId": "demo_judge",
+      "amount": 490,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Бизнес-ланч",
+      "date": "2026-09-02",
+      "createdAt": 1788318440771,
+      "merchant": "Бизнес-ланч"
+    },
+    {
+      "id": "demo_5",
+      "userId": "demo_judge",
+      "amount": 299,
+      "currency": "RUB",
+      "category": "Подписки и сервисы",
+      "description": "Подписка Яндекс Плюс",
+      "date": "2026-09-01",
+      "createdAt": 1788232040771,
+      "merchant": "Яндекс"
+    },
+    {
+      "id": "demo_6",
+      "userId": "demo_judge",
+      "amount": 1150,
+      "currency": "RUB",
+      "category": "Здоровье и аптека",
+      "description": "Аптека витамины",
+      "date": "2026-08-31",
+      "createdAt": 1788145640771,
+      "merchant": "витамины"
+    },
+    {
+      "id": "demo_7",
+      "userId": "demo_judge",
+      "amount": 2500,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "Заправка бензин 95",
+      "date": "2026-08-30",
+      "createdAt": 1788059240771,
+      "merchant": "бензин"
+    },
+    {
+      "id": "demo_8",
+      "userId": "demo_judge",
+      "amount": 1890,
+      "currency": "RUB",
+      "category": "Покупки и одежда",
+      "description": "Заказ Ozon книги",
+      "date": "2026-08-29",
+      "createdAt": 1787972840771,
+      "merchant": "Ozon"
+    },
+    {
+      "id": "demo_9",
+      "userId": "demo_judge",
+      "amount": 3400,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Ужин с друзьями",
+      "date": "2026-08-28",
+      "createdAt": 1787886440771,
+      "merchant": "с"
+    },
+    {
+      "id": "demo_10",
+      "userId": "demo_judge",
+      "amount": 4120,
+      "currency": "RUB",
+      "category": "Продукты",
+      "description": "Продукты Перекресток",
+      "date": "2026-08-26",
+      "createdAt": 1787713640771,
+      "merchant": "Перекресток"
+    },
+    {
+      "id": "demo_11",
+      "userId": "demo_judge",
+      "amount": 1200,
+      "currency": "RUB",
+      "category": "Развлечения и отдых",
+      "description": "Кино билеты",
+      "date": "2026-08-24",
+      "createdAt": 1787540840771,
+      "merchant": "билеты"
+    },
+    {
+      "id": "demo_12",
+      "userId": "demo_judge",
+      "amount": 5000,
+      "currency": "RUB",
+      "category": "Спорт и фитнес",
+      "description": "Абонемент в фитнес",
+      "date": "2026-08-22",
+      "createdAt": 1787368040771,
+      "merchant": "в"
+    },
+    {
+      "id": "demo_13",
+      "userId": "demo_judge",
+      "amount": 6800,
+      "currency": "RUB",
+      "category": "Жилье и ЖКХ",
+      "description": "Квартплата ЖКХ",
+      "date": "2026-08-19",
+      "createdAt": 1787108840771,
+      "merchant": "ЖКХ"
+    },
+    {
+      "id": "demo_14",
+      "userId": "demo_judge",
+      "amount": 6400,
+      "currency": "RUB",
+      "category": "Покупки и одежда",
+      "description": "Кроссовки спорт",
+      "date": "2026-08-16",
+      "createdAt": 1786849640771,
+      "merchant": "спорт"
+    },
+    {
+      "id": "demo_15",
+      "userId": "demo_judge",
+      "amount": 280,
+      "currency": "RUB",
+      "category": "Кафе и рестораны",
+      "description": "Кофе на вынос",
+      "date": "2026-08-14",
+      "createdAt": 1786676840771,
+      "merchant": "на"
+    },
+    {
+      "id": "demo_16",
+      "userId": "demo_judge",
+      "amount": 1650,
+      "currency": "RUB",
+      "category": "Транспорт и такси",
+      "description": "Такси аэропорт",
+      "date": "2026-08-12",
+      "createdAt": 1786504040771,
+      "merchant": "аэропорт"
+    }
+  ],
+  "users": {
+    "demo_judge": {
+      "telegramId": "demo_judge",
+      "username": "judge_demo",
+      "firstName": "Судья / Тестер",
+      "currency": "TJS",
+      "preferredLanguage": "ru",
+      "categoryLimits": {
+        "Кафе и рестораны": 1200,
+        "Продукты": 2500,
+        "Транспорт и такси": 1000,
+        "Развлечения и отдых": 800
+      },
+      "shareCode": "DEMO99",
+      "createdAt": 1788404840771
+    },
+    "7930423139": {
+      "telegramId": "7930423139",
+      "username": "farovon_7777",
+      "firstName": "Farovon",
+      "currency": "TJS",
+      "preferredLanguage": "tg",
+      "categoryLimits": {
+        "Кафе и рестораны": 1500,
+        "Продукты": 3000,
+        "Транспорт и такси": 1000
+      },
+      "shareCode": "1Z28I0",
+      "createdAt": 1788406567261
+    }
+  },
+  "sessions": {
+    "demo-session-token": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788404840771,
+      "expiresAt": 1790996840771
+    },
+    "75638edb53bf754fa5f3958aa62604fdf8d2b5b40246f6ff": {
+      "telegramId": "7930423139",
+      "createdAt": 1788406567262,
+      "expiresAt": 1790998567262
+    },
+    "fb220776d9e9ccb29ffe0196d8acfd8b5ea5e1ad5c8713ff": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788406725518,
+      "expiresAt": 1790998725518
+    },
+    "3e68339134a520a1e174131065f2f8771984c6ef2ee7a060": {
+      "telegramId": "7930423139",
+      "createdAt": 1788406926342,
+      "expiresAt": 1790998926342
+    },
+    "1204f0a4d9984bdd558e769f8afe9a4af9c009726977d4ed": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788407030830,
+      "expiresAt": 1790999030830
+    },
+    "8bbae123f2c75eb722378958ac33b8b0202fdc8da2b45067": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407065610,
+      "expiresAt": 1790999065610
+    },
+    "888a4489309519f00dd18f732b0b8e018ca2c91e35cfd4d6": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407065694,
+      "expiresAt": 1790999065694
+    },
+    "c724d929b723352de258306b9133d64115943ccac76f21b7": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407073015,
+      "expiresAt": 1790999073015
+    },
+    "e5aa6cde71143aa4176b83101efd5fdad1f31eaf65aed83e": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407073106,
+      "expiresAt": 1790999073106
+    },
+    "f974681cb37a2cb7f645dc0a9b8e7841858bc8382d9a26c4": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788407104681,
+      "expiresAt": 1790999104681
+    },
+    "ea09c708eef077acd23ad0a1815c422e6e596bdf249007ce": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407130767,
+      "expiresAt": 1790999130767
+    },
+    "ee543b99e0357426e796c20d8f615bcaf0099fcb39078efc": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407148356,
+      "expiresAt": 1790999148356
+    },
+    "51dbe193f977568e15362adb37d8268db205f906ff54ca29": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407160248,
+      "expiresAt": 1790999160248
+    },
+    "7ee321385b234a8e69e693d9d7cc4a7e8d32bedfa6f16a11": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407306426,
+      "expiresAt": 1790999306426
+    },
+    "3e1b855f4dfadd87ea804e084e3c35453fb4cf3e77d6b853": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407336928,
+      "expiresAt": 1790999336928
+    },
+    "d26b8ce144c5078fe29f135e49f5b1703893617a785634a7": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407342808,
+      "expiresAt": 1790999342808
+    },
+    "386116422d02a5ef007532c2efcfc43ea5ef64e005dad9d0": {
+      "telegramId": "7930423139",
+      "createdAt": 1788407989742,
+      "expiresAt": 1790999989742
+    },
+    "d2906fe8502b8d691c288e52f4d71794060e3d581b1a65ae": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788408406901,
+      "expiresAt": 1791000406901
+    },
+    "f9fd8265b3c6412ce2f39664a79c2cfd3ec6349da11bf06d": {
+      "telegramId": "7930423139",
+      "createdAt": 1788408693036,
+      "expiresAt": 1791000693036
+    },
+    "8299e0c7bf831b95c6046ceea1219b6402746e2e132c3815": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788408697875,
+      "expiresAt": 1791000697875
+    },
+    "25b56d3aabf46dc3508ea3edf42e82c06e36cc3cf52d8cb4": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788408705405,
+      "expiresAt": 1791000705405
+    },
+    "08d1935d0f1f620a1629176305862abd7fac589329c5bb4a": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788408709988,
+      "expiresAt": 1791000709988
+    },
+    "93b5e1f18c3099276fd65ce5c08a89875e897074b56242d5": {
+      "telegramId": "demo_judge",
+      "createdAt": 1788408729197,
+      "expiresAt": 1791000729197
+    },
+    "d6869835447a8ba930da2fc181bca95d5536616e56b5385b": {
+      "telegramId": "7930423139",
+      "createdAt": 1788408738726,
+      "expiresAt": 1791000738726
+    }
+  },
+  "botToken": "8747657705:AAE9mB2r2GxIRA4Im1moWm_W2isAhx4vOpk"
+}

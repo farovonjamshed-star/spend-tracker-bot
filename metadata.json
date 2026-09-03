@@ -1,0 +1,6 @@
+{
+  "name": "Telegram Expense Tracker & Dashboard",
+  "description": "Личный трекер расходов с быстрым вводом через Telegram-бота, умной категоризацией, распознаванием чеков и интерактивной веб-панелью с отчетами по дням и категориям.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
