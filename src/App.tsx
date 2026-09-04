@@ -347,7 +347,9 @@ export default function App() {
         {/* 2. Visual Analytics (Charts & Limits) */}
         <AnalyticsSection
           stats={stats}
+          expenses={expenses}
           currency={currency}
+          user={user}
           onOpenLimitsModal={() => setIsLimitsModalOpen(true)}
         />
 

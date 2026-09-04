@@ -64,7 +64,7 @@ TELEGRAM_BOT_TOKEN="ВАШ_TELEGRAM_BOT_TOKEN"
 GEMINI_API_KEY="ВАШ_GEMINI_API_KEY"
 
 # Публичный URL приложения (для генерации ссылок на веб-панель в боте)
-APP_URL="http://localhost:3000"
+APP_URL="https://spend-tracker-bot-v87h.onrender.com"
 ```
 
 > 🔒 **Безопасность**: Секретные ключи (`TELEGRAM_BOT_TOKEN`, `GEMINI_API_KEY`) никогда не коммитятся в репозиторий и подставляются исключительно через переменные окружения.

@@ -4,6 +4,7 @@ export function formatCurrency(amount: number, currency: string = 'RUB'): string
     USD: '$',
     EUR: '€',
     KZT: '₸',
+    TJS: 'сомони',
   };
 
   const symbol = symbols[currency] || currency;

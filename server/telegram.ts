@@ -57,13 +57,14 @@ export class TelegramService {
   private lastUpdateId: number = 0;
   private pollTimeout: NodeJS.Timeout | null = null;
   private appUrl: string = '';
+  private readonly webAppUrl: string = 'https://spend-tracker-bot-v87h.onrender.com';
   private conflictDetected: boolean = false;
   private consecutiveConflicts: number = 0;
   private lastError: string | null = null;
 
   constructor() {
     this.token = process.env.TELEGRAM_BOT_TOKEN || db.getBotToken() || null;
-    this.appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+    this.appUrl = (process.env.APP_URL || 'https://spend-tracker-bot-v87h.onrender.com').replace(/\/$/, '');
     if (this.token) {
       this.initBot();
     }
@@ -312,8 +313,7 @@ export class TelegramService {
     return `${this.appUrl}/panel?token=${token}`;
   }
 
-  public getMainReplyKeyboard(telegramId: string) {
-    const panelUrl = this.getWebPanelUrl(telegramId);
+  public getMainReplyKeyboard(telegramId?: string) {
     return {
       keyboard: [
         [
@@ -322,7 +322,7 @@ export class TelegramService {
         ],
         [
           { text: '📈 Статистика' },
-          { text: '📊 Веб-панель', web_app: { url: panelUrl } },
+          { text: '📊 Веб-панель', web_app: { url: this.webAppUrl } },
         ],
         [
           { text: '➕ Добавить расход' },
@@ -559,7 +559,7 @@ export class TelegramService {
               { text: '🗑️ Удалить', callback_data: `del_${expense.id}` },
             ],
             [
-              { text: '📊 Открыть веб-панель', web_app: { url: panelUrl } },
+              { text: '📊 Открыть веб-панель', web_app: { url: this.webAppUrl } },
             ],
           ],
         },
@@ -644,7 +644,7 @@ export class TelegramService {
           inline_keyboard: [
             [
               { text: '🗑️ Удалить', callback_data: `del_${expense.id}` },
-              { text: '📊 Открыть веб-панель', web_app: { url: panelUrl } },
+              { text: '📊 Открыть веб-панель', web_app: { url: this.webAppUrl } },
             ],
           ],
         },
@@ -832,7 +832,7 @@ export class TelegramService {
               { text: '🗑️ Удалить', callback_data: `del_${last.id}` },
             ],
             [
-              { text: '📊 Открыть веб-панель', web_app: { url: panelUrl } },
+              { text: '📊 Открыть веб-панель', web_app: { url: this.webAppUrl } },
             ],
           ],
         },
@@ -935,7 +935,7 @@ export class TelegramService {
               { text: '🗑️ Удалить', callback_data: `del_${updated.id}` },
             ],
             [
-              { text: '📊 Открыть веб-панель', web_app: { url: panelUrl } },
+              { text: '📊 Открыть веб-панель', web_app: { url: this.webAppUrl } },
             ],
           ],
         },
@@ -1099,13 +1099,12 @@ export class TelegramService {
     }
 
     if (this.token) {
-      const panelUrl = this.getWebPanelUrl(telegramId);
       await this.apiCall('sendMessage', {
         chat_id: chatId,
         text,
         parse_mode: 'Markdown',
         reply_markup: {
-          inline_keyboard: [[{ text: '📊 Открыть веб-панель', web_app: { url: panelUrl } }]],
+          inline_keyboard: [[{ text: '📊 Открыть веб-панель', web_app: { url: this.webAppUrl } }]],
         },
       });
     }
@@ -1133,13 +1132,12 @@ export class TelegramService {
     });
 
     if (this.token) {
-      const panelUrl = this.getWebPanelUrl(telegramId);
       await this.apiCall('sendMessage', {
         chat_id: chatId,
         text,
         parse_mode: 'Markdown',
         reply_markup: {
-          inline_keyboard: [[{ text: '📊 Открыть веб-панель', web_app: { url: panelUrl } }]],
+          inline_keyboard: [[{ text: '📊 Открыть веб-панель', web_app: { url: this.webAppUrl } }]],
         },
       });
     }
@@ -1175,7 +1173,7 @@ export class TelegramService {
         text,
         parse_mode: 'Markdown',
         reply_markup: {
-          inline_keyboard: [[{ text: '📊 Подробные графики в веб-панели', web_app: { url: panelUrl } }]],
+          inline_keyboard: [[{ text: '📊 Подробные графики в веб-панели', web_app: { url: this.webAppUrl } }]],
         },
       });
     }
@@ -1203,7 +1201,7 @@ export class TelegramService {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🚀 Открыть в Telegram (Web App)', web_app: { url: panelUrl } }],
+            [{ text: '🚀 Открыть в Telegram (Web App)', web_app: { url: this.webAppUrl } }],
             [{ text: '🔗 Открыть в браузере', url: panelUrl }],
           ],
         },
@@ -1329,7 +1327,7 @@ export class TelegramService {
         reply_markup: {
           inline_keyboard: [
             [{ text: '📥 Скачать CSV', url: `${this.appUrl}/api/export-csv?token=${db.createSession(telegramId)}` }],
-            [{ text: '📊 Открыть веб-панель', web_app: { url: panelUrl } }],
+            [{ text: '📊 Открыть веб-панель', web_app: { url: this.webAppUrl } }],
           ],
         },
       });
