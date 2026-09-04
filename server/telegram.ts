@@ -63,10 +63,22 @@ export class TelegramService {
   private lastError: string | null = null;
 
   constructor() {
-    this.token = process.env.TELEGRAM_BOT_TOKEN || db.getBotToken() || null;
+    this.token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || db.getBotToken() || null;
     this.appUrl = (process.env.APP_URL || 'https://spend-tracker-bot-v87h.onrender.com').replace(/\/$/, '');
     if (this.token) {
       this.initBot();
+    }
+  }
+
+  public getToken(): string | null {
+    return this.token;
+  }
+
+  public async handleWebhookUpdate(update: TelegramUpdate) {
+    if (update.message) {
+      await this.handleIncomingMessage(update.message);
+    } else if (update.callback_query) {
+      await this.handleCallbackQuery(update.callback_query);
     }
   }
 
@@ -498,7 +510,7 @@ export class TelegramService {
     text: string
   ): Promise<string> {
     const user = db.getUser(telegramId);
-    const parsed = parseExpenseMessage(text, user.currency || 'RUB');
+    const parsed = parseExpenseMessage(text, user.currency || 'TJS');
 
     // If no numeric amount detected, the user might be asking a question or greeting
     if (parsed.amount <= 0) {
@@ -773,16 +785,16 @@ export class TelegramService {
     const currency = user.currency || 'TJS';
     const panelUrl = this.getWebPanelUrl(telegramId);
 
-    const message = `👋 Привет, *${firstName}*! Я твой персональный трекер расходов в Telegram.\n\n` +
+    const message = `👋 Салом / Привет, *${firstName}*! Я твой персональный трекер расходов в Telegram.\n\n` +
       `Никаких сложных форм и регистраций: просто отправь мне трату одним сообщением:\n` +
-      `• \`кофе 350\`\n` +
-      `• \`такси 900 работа\`\n` +
-      `• \`продукты 1850 супермаркет\`\n` +
+      `• \`қаҳва 350\`\n` +
+      `• \`такси 900 кор\`\n` +
+      `• \`кофе 350\` / \`обед 45\`\n` +
       `• \`50$ ужин\` (мультивалютность: TJS, RUB, USD, EUR)\n` +
       `• \`50 нону шир\` / \`150 алиф\`\n\n` +
       `📸 **Или пришли фото чека** (Alif mobi, DC Next, супермаркеты, АЗС) — сумма, магазин и категория распознаются автоматически с помощью ИИ!\n\n` +
       `📊 **Веб-панель:** вход без пароля по кнопке ниже.\n` +
-      `⚡ **Команды:** /today, /week, /month, /last, /delete, /edit, /limits, /share, /export, /help.`;
+      `⚡ **Команды:** /today, /week, /month, /days, /history, /last, /delete, /edit, /limits, /share, /export, /help.`;
 
     if (this.token) {
       await this.apiCall('sendMessage', {

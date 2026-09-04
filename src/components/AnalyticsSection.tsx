@@ -318,10 +318,10 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
       : null;
 
   return (
-    <div id="analytics-section" className="space-y-6 mb-8">
+    <div id="analytics-section" className="space-y-6 mb-8 w-full max-w-full">
       
       {/* Top Controls Bar: Section Title + Period Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs w-full max-w-full">
         <div>
           <div className="flex items-center gap-2">
             <PieChartIcon className="w-5 h-5 text-slate-700" />
@@ -339,7 +339,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
           id="analytics-period-selector"
           role="tablist"
           aria-label="Период аналитики"
-          className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200/60 self-start sm:self-auto"
+          className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200/60 w-full sm:w-auto overflow-x-auto justify-between sm:justify-start"
         >
           {(['today', 'week', 'month', 'all'] as TimePeriod[]).map((period) => {
             const isActive = selectedPeriod === period;
@@ -353,7 +353,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                   setSelectedPeriod(period);
                   setActiveIndex(null);
                 }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-initial text-center px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? 'bg-slate-900 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -367,12 +367,12 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
       </div>
 
       {/* Main Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-full">
         
         {/* 1. Interactive Ring Donut Chart (5 cols on lg) */}
         <div
           id="category-donut-chart-container"
-          className="lg:col-span-5 bg-white rounded-xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between"
+          className="w-full max-w-full lg:col-span-5 bg-white rounded-xl p-4 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between overflow-hidden"
         >
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -534,7 +534,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
         {/* 2. Dynamic Daily Expenses Bar Chart (7 cols on lg) */}
         <div
           id="daily-expenses-chart-container"
-          className="lg:col-span-7 bg-white rounded-xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between"
+          className="w-full max-w-full lg:col-span-7 bg-white rounded-xl p-4 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between overflow-hidden"
         >
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -610,7 +610,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
       {/* 3. Category Budgets & Limit Progress (Full Width Banner below) */}
       <div
         id="category-limits-progress-container"
-        className="bg-white rounded-xl p-5 sm:p-6 border border-slate-200/80 shadow-xs"
+        className="w-full max-w-full bg-white rounded-xl p-4 sm:p-6 border border-slate-200/80 shadow-xs overflow-hidden"
       >
         <div className="flex items-center justify-between mb-4">
           <div>

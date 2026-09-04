@@ -3,15 +3,28 @@ import { Header } from './components/Header.tsx';
 import { StatsCards } from './components/StatsCards.tsx';
 import { AnalyticsSection } from './components/AnalyticsSection.tsx';
 import { ExpensesList } from './components/ExpensesList.tsx';
+import { SettingsView } from './components/SettingsView.tsx';
 import { TelegramSimulatorModal } from './components/TelegramSimulatorModal.tsx';
 import { AddEditExpenseModal } from './components/AddEditExpenseModal.tsx';
 import { ReceiptScannerModal } from './components/ReceiptScannerModal.tsx';
 import { CategoryLimitsModal } from './components/CategoryLimitsModal.tsx';
 import { SharedBudgetModal } from './components/SharedBudgetModal.tsx';
-import { BotSetupModal } from './components/BotSetupModal.tsx';
 import { TelegramAccountModal } from './components/TelegramAccountModal.tsx';
 import { Expense, SummaryStats, TelegramBotStatus, UserProfile } from './types.ts';
-import { Bot, Sparkles, Plus, Receipt } from 'lucide-react';
+import { 
+  BarChart3, 
+  TrendingUp, 
+  Plus, 
+  ScrollText, 
+  Settings, 
+  Sparkles, 
+  Bot, 
+  Receipt,
+  ArrowRight
+} from 'lucide-react';
+import { formatCurrency } from './utils/formatters.ts';
+
+export type NavTab = 'overview' | 'analytics' | 'history' | 'settings';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -19,7 +32,7 @@ export default function App() {
   const [botStatus, setBotStatus] = useState<TelegramBotStatus | null>(null);
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [currency, setCurrency] = useState<string>('RUB');
+  const [currency, setCurrency] = useState<string>('TJS');
   const [authToken, setAuthToken] = useState<string | null>(() => {
     // Check URL params first
     const params = new URLSearchParams(window.location.search);
@@ -28,6 +41,9 @@ export default function App() {
     return localStorage.getItem('expense_app_token') || 'demo-session-token';
   });
 
+  // Navigation tab state: 5 tabs total (Overview, Analytics, Add, History, Settings)
+  const [activeNavTab, setActiveNavTab] = useState<NavTab>('overview');
+
   // Modal visibility states
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -35,7 +51,6 @@ export default function App() {
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isLimitsModalOpen, setIsLimitsModalOpen] = useState(false);
   const [isSharedBudgetOpen, setIsSharedBudgetOpen] = useState(false);
-  const [isBotSetupOpen, setIsBotSetupOpen] = useState(false);
   const [isTelegramAccountOpen, setIsTelegramAccountOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -146,22 +161,18 @@ export default function App() {
           });
           if (verifyRes.ok) {
             const verifyData = await verifyRes.json();
-            if (verifyData.user) {
-              setUser(verifyData.user);
-            }
+            setUser(verifyData.user);
           }
         } catch (e) {
-          console.error('Error verifying url token:', e);
+          console.error(e);
         }
       }
     };
 
-    initAuth().finally(() => {
-      fetchData();
-    });
+    initAuth().then(() => fetchData());
   }, [fetchData]);
 
-  // Switch account / test data isolation
+  // Switch account
   const handleSwitchAccount = async (targetId: string, name?: string) => {
     try {
       const res = await fetch('/api/auth/switch-account', {
@@ -254,140 +265,312 @@ export default function App() {
     }
   };
 
-  // Export CSV download
+  // Export CSV download (Client-side trigger generating expenses_report.csv)
   const handleExportCsv = () => {
-    const tokenQuery = authToken ? `?token=${authToken}` : '';
-    window.location.href = `/api/export-csv${tokenQuery}`;
+    try {
+      const header = ['ID', 'Дата', 'Категория', 'Описание', 'Сумма', 'Валюта', 'Продавец'].join(';');
+      const rows = expenses.map((e) => [
+        e.id,
+        e.date,
+        `"${(e.category || '').replace(/"/g, '""')}"`,
+        `"${(e.description || '').replace(/"/g, '""')}"`,
+        e.amount,
+        e.currency || currency,
+        `"${(e.merchant || '').replace(/"/g, '""')}"`,
+      ].join(';'));
+
+      const csvContent = '\uFEFF' + [header, ...rows].join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'expenses_report.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('📥 Файл expenses_report.csv успешно скачан!');
+    } catch (e) {
+      console.error('CSV export error:', e);
+      const tokenQuery = authToken ? `?token=${authToken}` : '';
+      window.location.href = `/api/export-csv${tokenQuery}`;
+    }
   };
 
   return (
-    <div id="expense-app-root" className="min-h-screen bg-[#F9FAFB] text-slate-900 flex flex-col font-sans">
+    <div 
+      id="expense-app-root" 
+      className="min-h-screen max-w-md mx-auto relative flex flex-col overflow-x-hidden bg-gray-50 text-slate-900 font-sans shadow-sm"
+    >
       
       {/* Toast notification */}
       {toastMessage && (
         <div 
           id="app-toast-notification"
-          className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 bg-slate-900 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg border border-slate-800 animate-in fade-in slide-in-from-bottom-3 duration-150"
+          className="fixed bottom-20 left-4 right-4 z-50 bg-slate-900 text-white text-xs font-medium px-4 py-2.5 rounded-lg shadow-lg border border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-150 max-w-sm mx-auto"
         >
           {toastMessage}
         </div>
       )}
 
-      {/* Main Header */}
+      {/* 1. Main Header (Чистый логотип, статус подключения, выбор валюты, кнопка экспорта в CSV) */}
       <Header
-        botStatus={botStatus}
-        user={user}
-        onOpenAddExpense={() => {
-          setEditingExpense(null);
-          setIsAddEditOpen(true);
-        }}
-        onOpenReceiptScanner={() => setIsReceiptScannerOpen(true)}
-        onOpenSimulator={() => setIsSimulatorOpen(true)}
-        onOpenSettings={() => setIsBotSetupOpen(true)}
-        onOpenSharedBudget={() => setIsSharedBudgetOpen(true)}
-        onOpenTelegramAccount={() => setIsTelegramAccountOpen(true)}
-        onExportCsv={handleExportCsv}
+        currency={currency}
         onChangeCurrency={handleChangeCurrency}
+        onExportCsv={handleExportCsv}
+        botStatus={botStatus}
       />
 
-      {/* Main Dashboard Container */}
-      <main id="app-main-content" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      {/* 2. Main Dashboard Content (С четким нижним отступом pb-28, исключающим перекрытие панелью) */}
+      <main 
+        id="app-main-content" 
+        className="pb-28 px-4 pt-4 flex-1 w-full overflow-x-hidden"
+      >
         
-        {/* Quick Welcome & Guide Banner in Clean Minimalism */}
-        <div id="quick-guide-banner" className="bg-white rounded-xl p-5 sm:p-6 mb-6 sm:mb-8 border border-slate-200/80 shadow-xs">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/60 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  Умный трекер расходов
-                </span>
+        {/* ВКЛАДКА 1: 📊 ОБЗОР */}
+        {activeNavTab === 'overview' && (
+          <div id="tab-content-overview" className="space-y-4">
+            
+            {/* Карточка-баннер быстрого статуса */}
+            <div id="quick-guide-banner" className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-xs font-semibold text-slate-700">
+                    Умный Telegram-бот
+                  </span>
+                </div>
                 {user?.partnerTelegramId && (
-                  <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                    👥 Бюджет на двоих активен
+                  <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                    👥 На двоих
                   </span>
                 )}
               </div>
-              <h2 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-                Управляйте тратами через Telegram в одно сообщение
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-                Напишите боту «<code className="text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 font-mono text-xs">кофе 350</code>» или «<code className="text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 font-mono text-xs">такси 900 работа</code>» — категория определится автоматически, а трата мгновенно появится в аналитике.
-              </p>
+
+              <div>
+                <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                  Быстрый учет финансов
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  Отправьте боту «<code className="text-slate-800 bg-slate-100 px-1 py-0.5 rounded font-mono text-[11px]">кофе 250</code>» или «<code className="text-slate-800 bg-slate-100 px-1 py-0.5 rounded font-mono text-[11px]">такси 400</code>» — категория определится автоматически!
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsSimulatorOpen(true)}
+                  className="flex-1 py-2 px-3 bg-sky-500 hover:bg-sky-600 active:scale-98 text-white rounded-lg text-xs font-semibold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>Telegram-чат</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsReceiptScannerOpen(true)}
+                  className="flex-1 py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium border border-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Чек (AI)</span>
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
-              <button
-                id="banner-open-sim-btn"
-                onClick={() => setIsSimulatorOpen(true)}
-                className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-xs sm:text-sm font-semibold shadow-xs transition-colors flex items-center gap-2 cursor-pointer active:scale-98"
-              >
-                <Bot className="w-4 h-4" />
-                <span>Telegram-чат</span>
-              </button>
-              <button
-                id="banner-scan-receipt-btn"
-                onClick={() => setIsReceiptScannerOpen(true)}
-                className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs sm:text-sm font-medium border border-slate-200 shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
-              >
-                <Receipt className="w-4 h-4 text-slate-400" />
-                <span>Фото чека (AI)</span>
-              </button>
+            {/* Карточки за день, неделю, месяц и лимиты */}
+            <StatsCards
+              stats={stats}
+              currency={currency}
+              onOpenLimitsModal={() => setIsLimitsModalOpen(true)}
+            />
+
+            {/* Блок последних трат */}
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Последние операции
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setActiveNavTab('history')}
+                  className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer inline-flex items-center gap-1"
+                >
+                  <span>Вся история</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {expenses.length === 0 ? (
+                <div className="text-center py-6 text-slate-400 text-xs">
+                  <p>Пока нет добавленных расходов</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingExpense(null);
+                      setIsAddEditOpen(true);
+                    }}
+                    className="mt-2 text-xs font-semibold text-slate-900 underline cursor-pointer"
+                  >
+                    + Записать первую трату
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {expenses.slice(0, 4).map((exp) => (
+                    <div key={exp.id} className="py-2.5 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-slate-900 truncate">
+                          {exp.description || exp.category}
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                          <span className="font-medium text-slate-600">{exp.category}</span>
+                          <span>•</span>
+                          <span>{exp.date}</span>
+                        </div>
+                      </div>
+                      <div className="text-xs font-bold text-slate-900 shrink-0">
+                        -{exp.amount.toLocaleString('ru-RU')} {exp.currency || currency}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+
           </div>
-        </div>
+        )}
 
-        {/* 1. Summary Metric Cards */}
-        <StatsCards
-          stats={stats}
-          currency={currency}
-          onOpenLimitsModal={() => setIsLimitsModalOpen(true)}
-        />
+        {/* ВКЛАДКА 2: 📈 АНАЛИТИКА */}
+        {activeNavTab === 'analytics' && (
+          <div id="tab-content-analytics" className="space-y-4">
+            <AnalyticsSection
+              stats={stats}
+              expenses={expenses}
+              currency={currency}
+              user={user}
+              onOpenLimitsModal={() => setIsLimitsModalOpen(true)}
+            />
+          </div>
+        )}
 
-        {/* 2. Visual Analytics (Charts & Limits) */}
-        <AnalyticsSection
-          stats={stats}
-          expenses={expenses}
-          currency={currency}
-          user={user}
-          onOpenLimitsModal={() => setIsLimitsModalOpen(true)}
-        />
+        {/* ВКЛАДКА 4: 📜 ИСТОРИЯ */}
+        {activeNavTab === 'history' && (
+          <div id="tab-content-history" className="space-y-4">
+            <ExpensesList
+              expenses={expenses}
+              currency={currency}
+              onEditExpense={(exp) => {
+                setEditingExpense(exp);
+                setIsAddEditOpen(true);
+              }}
+              onDeleteExpense={handleDeleteExpense}
+            />
+          </div>
+        )}
 
-        {/* 3. Expense History Feed & Management */}
-        <ExpensesList
-          expenses={expenses}
-          currency={currency}
-          onEditExpense={(exp) => {
-            setEditingExpense(exp);
-            setIsAddEditOpen(true);
-          }}
-          onDeleteExpense={handleDeleteExpense}
-        />
+        {/* ВКЛАДКА 5: ⚙️ НАСТРОЙКИ */}
+        {activeNavTab === 'settings' && (
+          <div id="tab-content-settings" className="space-y-4">
+            <SettingsView
+              botStatus={botStatus}
+              user={user}
+              partner={partner}
+              currency={currency}
+              onChangeCurrency={handleChangeCurrency}
+              onOpenSharedBudget={() => setIsSharedBudgetOpen(true)}
+              onOpenTelegramAccount={() => setIsTelegramAccountOpen(true)}
+              onOpenSimulator={() => setIsSimulatorOpen(true)}
+              onTokenUpdated={() => {
+                showToast('🤖 Настройки обновлены');
+                fetchData();
+              }}
+            />
+          </div>
+        )}
 
       </main>
 
-      {/* Floating Bottom Mobile Bar for Quick Action */}
-      <div id="mobile-floating-bar" className="sm:hidden fixed bottom-4 right-4 left-4 z-40 flex items-center justify-between gap-2 p-2 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 text-slate-900">
+      {/* 3. Нижняя панель навигации на 5 вкладок (Bottom Navigation Bar) */}
+      <nav 
+        id="bottom-navigation-bar" 
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-gray-200 h-16 flex items-center justify-around max-w-md mx-auto px-1 shadow-lg"
+      >
+        {/* 1. 📊 Обзор */}
         <button
-          onClick={() => setIsSimulatorOpen(true)}
-          className="flex-1 py-2 px-3 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5"
+          id="bottom-nav-overview"
+          type="button"
+          onClick={() => setActiveNavTab('overview')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors cursor-pointer ${
+            activeNavTab === 'overview' ? 'text-slate-900 font-bold' : 'text-slate-400 hover:text-slate-600 font-medium'
+          }`}
+          title="Обзор (Главная)"
         >
-          <Bot className="w-4 h-4" />
-          <span>Telegram-чат</span>
+          <BarChart3 className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 tracking-tight">Обзор</span>
         </button>
-        <button
-          onClick={() => {
-            setEditingExpense(null);
-            setIsAddEditOpen(true);
-          }}
-          className="flex-1 py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Трата</span>
-        </button>
-      </div>
 
-      {/* Modals */}
+        {/* 2. 📈 Аналитика */}
+        <button
+          id="bottom-nav-analytics"
+          type="button"
+          onClick={() => setActiveNavTab('analytics')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors cursor-pointer ${
+            activeNavTab === 'analytics' ? 'text-slate-900 font-bold' : 'text-slate-400 hover:text-slate-600 font-medium'
+          }`}
+          title="Графики и лимиты"
+        >
+          <TrendingUp className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 tracking-tight">Аналитика</span>
+        </button>
+
+        {/* 3. ➕ Добавить (Центральная акцентная кнопка) */}
+        <div className="flex flex-col items-center justify-center flex-1">
+          <button
+            id="bottom-nav-add-expense"
+            type="button"
+            onClick={() => {
+              setEditingExpense(null);
+              setIsAddEditOpen(true);
+            }}
+            className="flex items-center justify-center -mt-5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white w-12 h-12 rounded-full shadow-md border-2 border-white transition-all cursor-pointer group"
+            title="Добавить расход"
+          >
+            <Plus className="w-6 h-6 transition-transform group-hover:scale-110" />
+          </button>
+          <span className="text-[10px] font-semibold text-slate-900 mt-0.5 tracking-tight whitespace-nowrap">
+            Добавить
+          </span>
+        </div>
+
+        {/* 4. 📜 История */}
+        <button
+          id="bottom-nav-history"
+          type="button"
+          onClick={() => setActiveNavTab('history')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors cursor-pointer ${
+            activeNavTab === 'history' ? 'text-slate-900 font-bold' : 'text-slate-400 hover:text-slate-600 font-medium'
+          }`}
+          title="Список всех операций"
+        >
+          <ScrollText className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 tracking-tight">История</span>
+        </button>
+
+        {/* 5. ⚙️ Настройки */}
+        <button
+          id="bottom-nav-settings"
+          type="button"
+          onClick={() => setActiveNavTab('settings')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors cursor-pointer ${
+            activeNavTab === 'settings' ? 'text-slate-900 font-bold' : 'text-slate-400 hover:text-slate-600 font-medium'
+          }`}
+          title="Настройки бота, на двоих и валюта"
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 tracking-tight">Настройки</span>
+        </button>
+      </nav>
+
+      {/* Модальные окна */}
       <TelegramSimulatorModal
         isOpen={isSimulatorOpen}
         onClose={() => setIsSimulatorOpen(false)}
@@ -434,16 +617,6 @@ export default function App() {
         partner={partner}
         onPartnerLinked={() => {
           showToast('👥 Бюджет успешно объединен!');
-          fetchData();
-        }}
-      />
-
-      <BotSetupModal
-        isOpen={isBotSetupOpen}
-        onClose={() => setIsBotSetupOpen(false)}
-        botStatus={botStatus}
-        onTokenUpdated={() => {
-          showToast('🤖 Настройки бота обновлены');
           fetchData();
         }}
       />
