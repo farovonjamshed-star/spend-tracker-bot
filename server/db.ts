@@ -14,6 +14,27 @@ interface DbSchema {
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'database.json');
 
+export const CURRENCY_RATES_TO_TJS: Record<string, number> = {
+  TJS: 1.0,
+  USD: 10.7,      // 1 USD = 10.7 TJS
+  RUB: 0.107,     // 1000 RUB = 107 TJS -> 1 RUB = 0.107 TJS
+  EUR: 11.6,      // 1 EUR = 11.6 TJS
+  KZT: 0.0238,    // 1 KZT = 0.0238 TJS
+};
+
+export function convertAmount(amount: number, fromCurrency: string = 'TJS', toCurrency: string = 'TJS'): number {
+  if (!amount || isNaN(amount)) return 0;
+  const from = (fromCurrency || 'TJS').toUpperCase();
+  const to = (toCurrency || 'TJS').toUpperCase();
+  if (from === to) return amount;
+
+  const rateFrom = CURRENCY_RATES_TO_TJS[from] ?? 1.0;
+  const rateTo = CURRENCY_RATES_TO_TJS[to] ?? 1.0;
+
+  const inTjs = amount * rateFrom;
+  return inTjs / rateTo;
+}
+
 class Database {
   private data: DbSchema = {
     expenses: [],
@@ -300,10 +321,12 @@ class Database {
     return deleted;
   }
 
-  // Statistics calculation for telegramId
-  getStats(telegramId: string): SummaryStats {
+  // Statistics calculation for telegramId with dynamic currency conversion
+  getStats(telegramId: string, requestedCurrency?: string): SummaryStats {
     const user = this.getUser(telegramId);
     const expenses = this.getExpenses(telegramId);
+    const targetCurrency = (requestedCurrency || user.currency || 'TJS').toUpperCase();
+    const isDecimalCurrency = targetCurrency === 'USD' || targetCurrency === 'EUR';
 
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -338,16 +361,18 @@ class Database {
 
     expenses.forEach((e) => {
       const expDate = new Date(e.date + 'T00:00:00');
+      // Convert raw amount to active target currency
+      const convertedVal = convertAmount(e.amount, e.currency || 'TJS', targetCurrency);
 
       // Month stats
       if (expDate >= startOfMonth && expDate <= now) {
-        monthTotal += e.amount;
+        monthTotal += convertedVal;
 
         // Categories this month
         if (!catTotals[e.category]) {
           catTotals[e.category] = { amount: 0, count: 0 };
         }
-        catTotals[e.category].amount += e.amount;
+        catTotals[e.category].amount += convertedVal;
         catTotals[e.category].count += 1;
 
         // Days this month
@@ -355,29 +380,32 @@ class Database {
         if (!dayTotals[dKey]) {
           dayTotals[dKey] = { amount: 0, count: 0 };
         }
-        dayTotals[dKey].amount += e.amount;
+        dayTotals[dKey].amount += convertedVal;
         dayTotals[dKey].count += 1;
       }
 
       if (expDate >= startOfLastMonth && expDate <= endOfLastMonth) {
-        lastMonthTotal += e.amount;
+        lastMonthTotal += convertedVal;
       }
 
       // Today / Yesterday
-      if (e.date === todayStr) todayTotal += e.amount;
-      if (e.date === yesterdayStr) yesterdayTotal += e.amount;
+      if (e.date === todayStr) todayTotal += convertedVal;
+      if (e.date === yesterdayStr) yesterdayTotal += convertedVal;
 
       // Week / Last week
-      if (expDate >= startOfWeek && expDate <= now) weekTotal += e.amount;
-      if (expDate >= startOfLastWeek && expDate < startOfWeek) lastWeekTotal += e.amount;
+      if (expDate >= startOfWeek && expDate <= now) weekTotal += convertedVal;
+      if (expDate >= startOfLastWeek && expDate < startOfWeek) lastWeekTotal += convertedVal;
     });
 
+    const roundVal = (num: number) => (isDecimalCurrency ? Number(num.toFixed(2)) : Math.round(num));
+
     const byCategory = Object.entries(catTotals).map(([cat, val]) => {
-      const limit = user.categoryLimits[cat];
+      const rawLimit = user.categoryLimits[cat];
+      const limit = rawLimit ? roundVal(convertAmount(rawLimit, 'TJS', targetCurrency)) : undefined;
       const isOverLimit = limit ? val.amount > limit : false;
       return {
         category: cat,
-        amount: Math.round(val.amount),
+        amount: roundVal(val.amount),
         count: val.count,
         percentage: monthTotal > 0 ? Math.round((val.amount / monthTotal) * 100) : 0,
         limit,
@@ -396,19 +424,19 @@ class Database {
       const found = dayTotals[str] || { amount: 0, count: 0 };
       byDay.push({
         date: str,
-        amount: Math.round(found.amount),
+        amount: roundVal(found.amount),
         count: found.count,
       });
     }
 
     return {
-      todayTotal: Math.round(todayTotal),
-      yesterdayTotal: Math.round(yesterdayTotal),
-      weekTotal: Math.round(weekTotal),
-      lastWeekTotal: Math.round(lastWeekTotal),
-      monthTotal: Math.round(monthTotal),
-      lastMonthTotal: Math.round(lastMonthTotal),
-      currency: user.currency || 'TJS',
+      todayTotal: roundVal(todayTotal),
+      yesterdayTotal: roundVal(yesterdayTotal),
+      weekTotal: roundVal(weekTotal),
+      lastWeekTotal: roundVal(lastWeekTotal),
+      monthTotal: roundVal(monthTotal),
+      lastMonthTotal: roundVal(lastMonthTotal),
+      currency: targetCurrency,
       expenseCount: expenses.length,
       byCategory,
       byDay,

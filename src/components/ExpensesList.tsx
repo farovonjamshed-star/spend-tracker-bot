@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Expense, CATEGORY_COLORS, DEFAULT_CATEGORIES } from '../types.ts';
 import { formatCurrency, formatDate } from '../utils/formatters.ts';
+import { convertCurrency } from '../utils/currency.ts';
 
 interface ExpensesListProps {
   expenses: Expense[];
@@ -156,9 +157,19 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-bold text-slate-900">
-                      {formatCurrency(expense.amount, expense.currency || currency)}
-                    </span>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-slate-900 block">
+                        {formatCurrency(
+                          convertCurrency(expense.amount, expense.currency || 'TJS', currency),
+                          currency
+                        )}
+                      </span>
+                      {(expense.currency || 'TJS').toUpperCase() !== currency.toUpperCase() && (
+                        <span className="text-[10px] text-slate-400 font-medium block">
+                          ~{formatCurrency(expense.amount, expense.currency || 'TJS')}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-0.5">
                       <button
                         id={`mobile-edit-expense-${expense.id}`}
@@ -254,7 +265,17 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
 
                       {/* Amount */}
                       <td className="py-3.5 text-right font-bold text-slate-900">
-                        {formatCurrency(expense.amount, expense.currency || currency)}
+                        <span className="block">
+                          {formatCurrency(
+                            convertCurrency(expense.amount, expense.currency || 'TJS', currency),
+                            currency
+                          )}
+                        </span>
+                        {(expense.currency || 'TJS').toUpperCase() !== currency.toUpperCase() && (
+                          <span className="text-[10px] text-slate-400 font-medium block">
+                            ~{formatCurrency(expense.amount, expense.currency || 'TJS')}
+                          </span>
+                        )}
                       </td>
 
                       {/* Actions: Edit & Delete */}

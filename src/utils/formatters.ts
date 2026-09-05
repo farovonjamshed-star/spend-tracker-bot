@@ -1,4 +1,7 @@
-export function formatCurrency(amount: number, currency: string = 'RUB'): string {
+export function formatCurrency(amount: number, currency: string = 'TJS'): string {
+  if (amount === undefined || amount === null || isNaN(amount)) return '0';
+  const upperCurr = (currency || 'TJS').toUpperCase();
+
   const symbols: Record<string, string> = {
     RUB: '₽',
     USD: '$',
@@ -7,12 +10,43 @@ export function formatCurrency(amount: number, currency: string = 'RUB'): string
     TJS: 'сомони',
   };
 
-  const symbol = symbols[currency] || currency;
-  const formattedNumber = Math.round(amount).toLocaleString('ru-RU');
+  const symbol = symbols[upperCurr] || upperCurr;
 
-  if (currency === 'USD' || currency === 'EUR') {
-    return `${symbol}${formattedNumber}`;
+  if (upperCurr === 'USD') {
+    // ~$364.48 (2 decimal places)
+    const formatted = amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `${symbol}${formatted}`;
   }
+
+  if (upperCurr === 'EUR') {
+    // ~€336.21 (2 decimal places)
+    const formatted = amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `${symbol}${formatted}`;
+  }
+
+  if (upperCurr === 'RUB') {
+    // ~36 448 ₽
+    const rounded = Math.round(amount);
+    return `${rounded.toLocaleString('ru-RU')} ${symbol}`;
+  }
+
+  if (upperCurr === 'KZT') {
+    const rounded = Math.round(amount);
+    return `${rounded.toLocaleString('ru-RU')} ${symbol}`;
+  }
+
+  // TJS: If integer, format without decimals; if fractional, show 2 decimals
+  const isInteger = Math.abs(amount - Math.round(amount)) < 0.05;
+  const formattedNumber = isInteger
+    ? Math.round(amount).toLocaleString('ru-RU')
+    : amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return `${formattedNumber} ${symbol}`;
 }
 

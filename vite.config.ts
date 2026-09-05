@@ -12,18 +12,17 @@ export default defineConfig(() => {
       },
     },
     build: {
+      chunkSizeWarningLimit: 1600,
       rollupOptions: {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
-              if (id.includes('react')) return 'vendor-react';
-              if (id.includes('recharts') || id.includes('lucide')) return 'vendor-ui';
+              // Все зависимости собираем в единый безопасный vendor-чанк, чтобы не ломать контекст React
               return 'vendor';
             }
           },
         },
       },
-      chunkSizeWarningLimit: 1000,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

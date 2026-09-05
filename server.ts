@@ -304,7 +304,22 @@ app.delete('/api/expenses/:id', (req, res) => {
 // 4. Statistics
 app.get('/api/stats', (req, res) => {
   const user = getAuthUser(req);
-  res.json(db.getStats(user.telegramId));
+  const targetCurrency = (req.query.currency as string) || user.currency || 'TJS';
+  res.json(db.getStats(user.telegramId, targetCurrency));
+});
+
+// 4.1 Currency rates
+app.get('/api/currency-rates', (req, res) => {
+  res.json({
+    base: 'TJS',
+    rates: {
+      TJS: 1.0,
+      USD: 10.7,
+      RUB: 0.107,
+      EUR: 11.6,
+      KZT: 0.0238,
+    },
+  });
 });
 
 // 5. Category Limits
@@ -327,7 +342,7 @@ app.post('/api/limits', (req, res) => {
   const updated = db.updateUser(user.telegramId, { categoryLimits: updatedLimits });
   res.json({
     user: updated,
-    stats: db.getStats(user.telegramId),
+    stats: db.getStats(user.telegramId, user.currency),
   });
 });
 
@@ -340,7 +355,10 @@ app.post('/api/me/currency', (req, res) => {
     return;
   }
   const updated = db.updateUser(user.telegramId, { currency });
-  res.json(updated);
+  res.json({
+    user: updated,
+    stats: db.getStats(user.telegramId, currency),
+  });
 });
 
 // 7. Shared Budget (Бюджет на двоих)

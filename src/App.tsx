@@ -73,9 +73,10 @@ export default function App() {
   }, [authToken]);
 
   // Load all app data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (selectedCurrency?: string) => {
     try {
       const headers = getHeaders();
+      const currentCurr = selectedCurrency || currency || 'TJS';
 
       // 1. Bot status
       fetch('/api/bot-status')
@@ -89,13 +90,13 @@ export default function App() {
         const meData = await meRes.json();
         setUser(meData.user);
         setPartner(meData.partner);
-        if (meData.user?.currency) {
+        if (!selectedCurrency && meData.user?.currency) {
           setCurrency(meData.user.currency);
         }
       }
 
-      // 3. Stats
-      const statsRes = await fetch('/api/stats', { headers });
+      // 3. Stats (request stats dynamically converted to current currency)
+      const statsRes = await fetch(`/api/stats?currency=${encodeURIComponent(currentCurr)}`, { headers });
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStats(statsData);
@@ -110,7 +111,7 @@ export default function App() {
     } catch (e) {
       console.error('Error fetching dashboard data:', e);
     }
-  }, [getHeaders]);
+  }, [getHeaders, currency]);
 
   // Initialize and check Telegram WebApp
   useEffect(() => {
@@ -254,14 +255,25 @@ export default function App() {
   const handleChangeCurrency = async (newCurrency: string) => {
     setCurrency(newCurrency);
     try {
-      await fetch('/api/me/currency', {
+      const res = await fetch('/api/me/currency', {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ currency: newCurrency }),
       });
-      fetchData();
+      if (res.ok) {
+        const data = await res.json();
+        if (data.stats) {
+          setStats(data.stats);
+        }
+        if (data.user) {
+          setUser(data.user);
+        }
+      }
+      fetchData(newCurrency);
+      showToast(`💱 Асъор ба ${newCurrency} иваз шуд. Ҳамаи маблағҳо аз нав ҳисоб карда шуданд!`);
     } catch (e) {
       console.error(e);
+      fetchData(newCurrency);
     }
   };
 
