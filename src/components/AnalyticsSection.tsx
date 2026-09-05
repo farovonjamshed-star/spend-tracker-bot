@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { SummaryStats, Expense, UserProfile, CATEGORY_COLORS } from '../types.ts';
 import { formatCurrency } from '../utils/formatters.ts';
+import { convertCurrency, roundCurrency } from '../utils/currency.ts';
 import {
   Calendar,
   PieChart as PieChartIcon,
@@ -91,7 +92,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     });
   }, [expenses, selectedPeriod, todayStr, currentYearMonth]);
 
-  // Aggregate category data for the interactive donut chart
+  // Aggregate category data for the interactive donut chart (dynamically converted to selected currency)
   const categoryData = useMemo(() => {
     // If expenses array is provided and has items or period is not month, compute from filteredExpenses
     if (expenses && expenses.length > 0) {
@@ -103,24 +104,30 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
         if (!catMap[cat]) {
           catMap[cat] = { amount: 0, count: 0 };
         }
-        catMap[cat].amount += exp.amount;
+        // Formula: Amount_in_target = Amount_in_source converted to currency
+        const converted = convertCurrency(exp.amount, exp.currency || 'TJS', currency);
+        catMap[cat].amount += converted;
         catMap[cat].count += 1;
-        total += exp.amount;
+        total += converted;
       }
 
       const items = Object.entries(catMap).map(([cat, val]) => {
+        const roundedAmount = roundCurrency(val.amount, currency);
+        const rawLimit = user?.categoryLimits?.[cat];
+        // Convert category limit to selected currency as well
+        const convertedLimit = rawLimit !== undefined ? roundCurrency(convertCurrency(rawLimit, 'TJS', currency), currency) : undefined;
         const pct = total > 0 ? Math.round((val.amount / total) * 100) : 0;
-        const limit = user?.categoryLimits?.[cat];
+
         return {
           name: cat,
           category: cat,
-          value: val.amount,
-          amount: val.amount,
+          value: roundedAmount,
+          amount: roundedAmount,
           count: val.count,
           percentage: pct,
           color: CATEGORY_COLORS[cat] || '#64748b',
-          limit: limit,
-          isOverLimit: limit ? val.amount > limit : false,
+          limit: convertedLimit,
+          isOverLimit: convertedLimit !== undefined ? roundedAmount > convertedLimit : false,
         };
       });
 
@@ -129,38 +136,47 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
 
       return {
         items,
-        total,
+        total: roundCurrency(total, currency),
         count: filteredExpenses.length,
       };
     }
 
     // Fallback to stats if expenses array is not populated yet
     if (stats && stats.byCategory) {
-      const items = stats.byCategory.map((c) => ({
-        name: c.category,
-        category: c.category,
-        value: c.amount,
-        amount: c.amount,
-        count: c.count,
-        percentage: c.percentage,
-        color: c.color || CATEGORY_COLORS[c.category] || '#64748b',
-        limit: c.limit,
-        isOverLimit: c.isOverLimit,
-      }));
+      const fromCurr = stats.currency || 'TJS';
+      const items = stats.byCategory.map((c) => {
+        const convertedAmount = roundCurrency(convertCurrency(c.amount, fromCurr, currency), currency);
+        const rawLimit = user?.categoryLimits?.[c.category];
+        const convertedLimit = rawLimit !== undefined
+          ? roundCurrency(convertCurrency(rawLimit, 'TJS', currency), currency)
+          : (c.limit !== undefined ? roundCurrency(convertCurrency(c.limit, fromCurr, currency), currency) : undefined);
+
+        return {
+          name: c.category,
+          category: c.category,
+          value: convertedAmount,
+          amount: convertedAmount,
+          count: c.count,
+          percentage: c.percentage,
+          color: c.color || CATEGORY_COLORS[c.category] || '#64748b',
+          limit: convertedLimit,
+          isOverLimit: convertedLimit !== undefined ? convertedAmount > convertedLimit : false,
+        };
+      });
 
       const total = items.reduce((acc, curr) => acc + curr.value, 0);
 
       return {
         items,
-        total,
+        total: roundCurrency(total, currency),
         count: stats.expenseCount || items.reduce((acc, curr) => acc + curr.count, 0),
       };
     }
 
     return { items: [], total: 0, count: 0 };
-  }, [expenses, filteredExpenses, stats, selectedPeriod, user]);
+  }, [expenses, filteredExpenses, stats, currency, user]);
 
-  // Aggregate daily bar chart data for selected period
+  // Aggregate daily bar chart data for selected period (converted to selected currency)
   const dailyChartData = useMemo(() => {
     if (selectedPeriod === 'week') {
       // Generate last 7 days slots
@@ -183,15 +199,20 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
         const expDateStr = exp.date.includes('T') ? exp.date.split('T')[0] : exp.date;
         const slot = days.find((d) => d.fullDate === expDateStr);
         if (slot) {
-          slot.amount += exp.amount;
+          const converted = convertCurrency(exp.amount, exp.currency || 'TJS', currency);
+          slot.amount += converted;
           slot.count += 1;
         }
       }
-      return days;
+
+      return days.map((d) => ({
+        ...d,
+        amount: roundCurrency(d.amount, currency),
+      }));
     }
 
     if (selectedPeriod === 'today') {
-      // For today, show breakdown by category or hourly
+      // For today, show breakdown by category
       return categoryData.items.slice(0, 6).map((c) => ({
         day: c.category.slice(0, 8),
         fullDate: c.category,
@@ -201,13 +222,15 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     }
 
     // Default to monthly day data from stats or computed
-    if (stats && stats.byDay && selectedPeriod === 'month') {
+    if (stats && stats.byDay && selectedPeriod === 'month' && (!expenses || expenses.length === 0)) {
+      const fromCurr = stats.currency || 'TJS';
       return stats.byDay.map((d) => {
         const dayNum = parseInt(d.date.split('-')[2], 10);
+        const converted = roundCurrency(convertCurrency(d.amount, fromCurr, currency), currency);
         return {
           day: String(dayNum),
           fullDate: d.date,
-          amount: d.amount,
+          amount: converted,
           count: d.count,
         };
       });
@@ -220,21 +243,89 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
       if (!dayMap[expDateStr]) {
         dayMap[expDateStr] = { amount: 0, count: 0 };
       }
-      dayMap[expDateStr].amount += exp.amount;
+      const converted = convertCurrency(exp.amount, exp.currency || 'TJS', currency);
+      dayMap[expDateStr].amount += converted;
       dayMap[expDateStr].count += 1;
     }
 
     const sortedDates = Object.keys(dayMap).sort();
     return sortedDates.slice(-14).map((dStr) => {
       const parts = dStr.split('-');
+      const rawAmt = dayMap[dStr].amount;
       return {
         day: `${parseInt(parts[2], 10)}.${parseInt(parts[1], 10)}`,
         fullDate: dStr,
-        amount: dayMap[dStr].amount,
+        amount: roundCurrency(rawAmt, currency),
         count: dayMap[dStr].count,
       };
     });
-  }, [selectedPeriod, filteredExpenses, stats, categoryData.items]);
+  }, [selectedPeriod, filteredExpenses, stats, currency, categoryData.items, expenses]);
+
+  // Aggregate monthly category limits and progress with dynamic currency recalculation
+  const limitsData = useMemo(() => {
+    // 1. Gather all configured limits in base TJS
+    const configuredLimits: Record<string, number> = { ...(user?.categoryLimits || {}) };
+
+    if (stats?.byCategory) {
+      const statsCurr = stats.currency || 'TJS';
+      for (const item of stats.byCategory) {
+        if (item.limit && item.limit > 0 && !configuredLimits[item.category]) {
+          // Convert back to TJS base if from stats
+          configuredLimits[item.category] = statsCurr !== 'TJS'
+            ? convertCurrency(item.limit, statsCurr, 'TJS')
+            : item.limit;
+        }
+      }
+    }
+
+    // 2. Calculate current month spending per category converted to active currency
+    const monthExpenses = expenses.filter((exp) => {
+      if (!exp.date) return false;
+      const d = exp.date.includes('T') ? exp.date.split('T')[0] : exp.date;
+      return d.startsWith(currentYearMonth);
+    });
+
+    const monthSpentMap: Record<string, number> = {};
+    for (const exp of monthExpenses) {
+      const cat = exp.category || 'Другое';
+      const converted = convertCurrency(exp.amount, exp.currency || 'TJS', currency);
+      monthSpentMap[cat] = (monthSpentMap[cat] || 0) + converted;
+    }
+
+    // If monthExpenses is empty, fallback to stats.byCategory
+    if (monthExpenses.length === 0 && stats?.byCategory) {
+      const fromCurr = stats.currency || 'TJS';
+      for (const item of stats.byCategory) {
+        const converted = fromCurr !== currency
+          ? convertCurrency(item.amount, fromCurr, currency)
+          : item.amount;
+        monthSpentMap[item.category] = converted;
+      }
+    }
+
+    // 3. Map into full limit objects with recalculated numbers and percentages
+    return Object.entries(configuredLimits)
+      .filter(([_, rawLimit]) => rawLimit && rawLimit > 0)
+      .map(([category, rawLimitTjs]) => {
+        // Formula: Sum_in_currency = Sum_in_TJS * Rate
+        const convertedLimit = roundCurrency(convertCurrency(rawLimitTjs, 'TJS', currency), currency);
+        const spent = roundCurrency(monthSpentMap[category] || 0, currency);
+
+        const percent = convertedLimit > 0 ? Math.min(150, Math.round((spent / convertedLimit) * 100)) : 0;
+        const isOver = spent > convertedLimit;
+        const isWarning = !isOver && percent >= 80;
+
+        return {
+          category,
+          amount: spent,
+          limit: convertedLimit,
+          percent,
+          isOver,
+          isWarning,
+        };
+      })
+      .sort((a, b) => b.percent - a.percent);
+  }, [user?.categoryLimits, stats?.byCategory, stats?.currency, expenses, currency, currentYearMonth]);
 
   // Custom tooltips
   const CustomBarTooltip = ({ active, payload }: any) => {
@@ -635,7 +726,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
         </div>
 
         {/* List configured limits or prompt */}
-        {(!stats?.byCategory || stats.byCategory.filter((c) => c.limit && c.limit > 0).length === 0) ? (
+        {limitsData.length === 0 ? (
           <div className="py-5 text-center bg-slate-50/70 rounded-lg border border-slate-100">
             <p className="text-xs text-slate-500 mb-2">
               У вас пока не настроены месячные лимиты по категориям.
@@ -649,53 +740,44 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stats.byCategory
-              .filter((c) => c.limit && c.limit > 0)
-              .map((c) => {
-                const limit = c.limit!;
-                const percent = Math.min(150, Math.round((c.amount / limit) * 100));
-                const isOver = c.amount > limit;
-                const isWarning = !isOver && percent >= 80;
-
-                return (
-                  <div
-                    key={c.category}
-                    className="p-3.5 rounded-lg border border-slate-200/80 bg-white hover:border-slate-300 transition-all shadow-2xs"
+            {limitsData.map((c) => (
+              <div
+                key={c.category}
+                className="p-3.5 rounded-lg border border-slate-200/80 bg-white hover:border-slate-300 transition-all shadow-2xs"
+              >
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="font-semibold text-slate-900 truncate">
+                    {c.category}
+                  </span>
+                  <span
+                    className={`font-bold ${
+                      c.isOver
+                        ? 'text-red-600'
+                        : c.isWarning
+                        ? 'text-amber-600'
+                        : 'text-slate-700'
+                    }`}
                   >
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="font-semibold text-slate-900 truncate">
-                        {c.category}
-                      </span>
-                      <span
-                        className={`font-bold ${
-                          isOver
-                            ? 'text-red-600'
-                            : isWarning
-                            ? 'text-amber-600'
-                            : 'text-slate-700'
-                        }`}
-                      >
-                        {percent}%
-                      </span>
-                    </div>
+                    {c.percent}%
+                  </span>
+                </div>
 
-                    {/* Progress Bar */}
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-2">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          isOver ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-slate-900'
-                        }`}
-                        style={{ width: `${Math.min(100, percent)}%` }}
-                      />
-                    </div>
+                {/* Progress Bar */}
+                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-2">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      c.isOver ? 'bg-red-500' : c.isWarning ? 'bg-amber-500' : 'bg-slate-900'
+                    }`}
+                    style={{ width: `${Math.min(100, c.percent)}%` }}
+                  />
+                </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span>{formatCurrency(c.amount, currency)}</span>
-                      <span>из {formatCurrency(limit, currency)}</span>
-                    </div>
-                  </div>
-                );
-              })}
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>{formatCurrency(c.amount, currency)}</span>
+                  <span>из {formatCurrency(c.limit, currency)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

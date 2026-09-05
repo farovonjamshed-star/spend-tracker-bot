@@ -23,6 +23,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { formatCurrency } from './utils/formatters.ts';
+import { convertCurrency, roundCurrency } from './utils/currency.ts';
 
 export type NavTab = 'overview' | 'analytics' | 'history' | 'settings';
 
@@ -95,11 +96,17 @@ export default function App() {
         }
       }
 
-      // 3. Stats (request stats dynamically converted to current currency)
-      const statsRes = await fetch(`/api/stats?currency=${encodeURIComponent(currentCurr)}`, { headers });
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
+      // 3. Stats & Analytics (request converted to current currency)
+      const analyticsRes = await fetch(`/api/analytics?currency=${encodeURIComponent(currentCurr)}`, { headers });
+      if (analyticsRes.ok) {
+        const statsData = await analyticsRes.json();
         setStats(statsData);
+      } else {
+        const statsRes = await fetch(`/api/stats?currency=${encodeURIComponent(currentCurr)}`, { headers });
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats(statsData);
+        }
       }
 
       // 4. Expenses
@@ -253,7 +260,34 @@ export default function App() {
 
   // Change currency
   const handleChangeCurrency = async (newCurrency: string) => {
+    const prevCurrency = currency;
     setCurrency(newCurrency);
+
+    // Immediate dynamic recalculation of stats to prevent UI delay
+    if (stats) {
+      const fromCurr = stats.currency || prevCurrency || 'TJS';
+      setStats({
+        ...stats,
+        todayTotal: roundCurrency(convertCurrency(stats.todayTotal, fromCurr, newCurrency), newCurrency),
+        yesterdayTotal: roundCurrency(convertCurrency(stats.yesterdayTotal, fromCurr, newCurrency), newCurrency),
+        weekTotal: roundCurrency(convertCurrency(stats.weekTotal, fromCurr, newCurrency), newCurrency),
+        lastWeekTotal: roundCurrency(convertCurrency(stats.lastWeekTotal, fromCurr, newCurrency), newCurrency),
+        monthTotal: roundCurrency(convertCurrency(stats.monthTotal, fromCurr, newCurrency), newCurrency),
+        lastMonthTotal: roundCurrency(convertCurrency(stats.lastMonthTotal, fromCurr, newCurrency), newCurrency),
+        currency: newCurrency,
+        byCategory: stats.byCategory.map((c) => ({
+          ...c,
+          amount: roundCurrency(convertCurrency(c.amount, fromCurr, newCurrency), newCurrency),
+          limit: c.limit !== undefined ? roundCurrency(convertCurrency(c.limit, fromCurr, newCurrency), newCurrency) : undefined,
+          isOverLimit: c.limit !== undefined ? convertCurrency(c.amount, fromCurr, newCurrency) > convertCurrency(c.limit, fromCurr, newCurrency) : false,
+        })),
+        byDay: stats.byDay.map((d) => ({
+          ...d,
+          amount: roundCurrency(convertCurrency(d.amount, fromCurr, newCurrency), newCurrency),
+        })),
+      });
+    }
+
     try {
       const res = await fetch('/api/me/currency', {
         method: 'POST',
@@ -270,7 +304,7 @@ export default function App() {
         }
       }
       fetchData(newCurrency);
-      showToast(`💱 Асъор ба ${newCurrency} иваз шуд. Ҳамаи маблағҳо аз нав ҳисоб карда шуданд!`);
+      showToast(`💱 Валюта переключена на ${newCurrency}. Все данные и графики пересчитаны!`);
     } catch (e) {
       console.error(e);
       fetchData(newCurrency);

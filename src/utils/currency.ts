@@ -52,6 +52,36 @@ export function convertCurrency(
 }
 
 /**
+ * Rounds an amount according to currency convention:
+ * - USD/EUR: 2 decimal places (e.g. 229.90, 233.64)
+ * - TJS/RUB/KZT: integer if whole, or 2 decimal places if fractional
+ */
+export function roundCurrency(amount: number, currency: string = 'TJS'): number {
+  if (amount === undefined || amount === null || isNaN(amount)) return 0;
+  const upper = (currency || 'TJS').toUpperCase();
+  if (upper === 'USD' || upper === 'EUR') {
+    return Number(amount.toFixed(2));
+  }
+  if (Math.abs(amount - Math.round(amount)) < 0.05) {
+    return Math.round(amount);
+  }
+  return Number(amount.toFixed(2));
+}
+
+/**
+ * Converts and rounds an amount into the target currency.
+ */
+export function convertAndRoundCurrency(
+  amount: number,
+  fromCurrency: string = 'TJS',
+  toCurrency: string = 'TJS',
+  rates: Record<string, number> = DEFAULT_CURRENCY_RATES_TO_TJS
+): number {
+  const converted = convertCurrency(amount, fromCurrency, toCurrency, rates);
+  return roundCurrency(converted, toCurrency);
+}
+
+/**
  * Normalizes any category string into one of canonical DEFAULT_CATEGORIES
  */
 export function normalizeCategory(cat?: string): string {
@@ -68,12 +98,42 @@ export function normalizeCategory(cat?: string): string {
     c.includes('алиф') ||
     c.includes('alif') ||
     c.includes('эсхата') ||
+    c.includes('eskhata') ||
     c.includes('ориён') ||
     c.includes('ориен') ||
+    c.includes('orien') ||
+    c.includes('спитамен') ||
+    c.includes('spitamen') ||
     c.includes('ҳумо') ||
     c.includes('хумо') ||
+    c.includes('humo') ||
     c.includes('амонат') ||
-    c.includes('банк')
+    c.includes('amonat') ||
+    c.includes('тавҳид') ||
+    c.includes('тавхид') ||
+    c.includes('tawhid') ||
+    c.includes('finca') ||
+    c.includes('финка') ||
+    c.includes('сбер') ||
+    c.includes('sber') ||
+    c.includes('тинькофф') ||
+    c.includes('т-банк') ||
+    c.includes('t-bank') ||
+    c.includes('tinkoff') ||
+    c.includes('kaspi') ||
+    c.includes('каспи') ||
+    c.includes('аударым') ||
+    c.includes('төлем') ||
+    c.includes('втб') ||
+    c.includes('vtb') ||
+    c.includes('альфа') ||
+    c.includes('alfa') ||
+    c.includes('uzum') ||
+    c.includes('payme') ||
+    c.includes('click') ||
+    c.includes('mbank') ||
+    c.includes('банк') ||
+    c.includes('bank')
   ) {
     return 'Переводы';
   }

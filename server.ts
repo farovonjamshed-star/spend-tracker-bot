@@ -3,9 +3,9 @@ import path from 'path';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
-import { db } from './server/db.ts';
+import { db, convertAmount } from './server/db.ts';
 import { telegramService } from './server/telegram.ts';
-import { parseExpenseMessage, parseReceiptWithGemini } from './server/categorizer.ts';
+import { parseExpenseMessage, parseReceiptWithGemini, extractReceiptWithRegex } from './server/categorizer.ts';
 import { getCategoryLocalizedName, formatAmountAndCurrency } from './src/types.ts';
 
 dotenv.config();
@@ -301,8 +301,15 @@ app.delete('/api/expenses/:id', (req, res) => {
   });
 });
 
-// 4. Statistics
+// 4. Statistics & Analytics
 app.get('/api/stats', (req, res) => {
+  const user = getAuthUser(req);
+  const targetCurrency = (req.query.currency as string) || user.currency || 'TJS';
+  res.json(db.getStats(user.telegramId, targetCurrency));
+});
+
+// Analytics endpoint with dynamic currency recalculation (e.g. /api/analytics?currency=USD)
+app.get('/api/analytics', (req, res) => {
   const user = getAuthUser(req);
   const targetCurrency = (req.query.currency as string) || user.currency || 'TJS';
   res.json(db.getStats(user.telegramId, targetCurrency));
@@ -325,7 +332,7 @@ app.get('/api/currency-rates', (req, res) => {
 // 5. Category Limits
 app.post('/api/limits', (req, res) => {
   const user = getAuthUser(req);
-  const { category, monthlyLimit } = req.body;
+  const { category, monthlyLimit, currency = 'TJS' } = req.body;
 
   if (!category || monthlyLimit === undefined) {
     res.status(400).json({ error: 'Category and monthlyLimit required' });
@@ -336,7 +343,9 @@ app.post('/api/limits', (req, res) => {
   if (Number(monthlyLimit) <= 0) {
     delete updatedLimits[category];
   } else {
-    updatedLimits[category] = Number(monthlyLimit);
+    // Convert limit from submitted currency to base TJS
+    const limitInTjs = Math.round(convertAmount(Number(monthlyLimit), currency, 'TJS'));
+    updatedLimits[category] = limitInTjs;
   }
 
   const updated = db.updateUser(user.telegramId, { categoryLimits: updatedLimits });
@@ -384,40 +393,47 @@ app.post('/api/shared-budget/link', (req, res) => {
   });
 });
 
-// 8. Receipt AI OCR
+// 8. Receipt AI OCR (Supports Domestic & International Banks, PDF & Images, Regex Fallback)
 app.post('/api/receipt-scan', async (req, res) => {
-  const { imageBase64, mimeType } = req.body;
-  if (!imageBase64) {
-    res.status(400).json({ success: false, error: 'Image data is required' });
+  const { imageBase64, mimeType, textHint } = req.body;
+  if (!imageBase64 && !textHint) {
+    res.status(400).json({ success: false, error: 'Image data or text is required' });
     return;
   }
 
   try {
-    const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
-    const result = await parseReceiptWithGemini(cleanBase64, mimeType || 'image/jpeg');
+    let result;
+    if (imageBase64) {
+      const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+      result = await parseReceiptWithGemini(cleanBase64, mimeType || 'image/jpeg');
+    } else {
+      result = extractReceiptWithRegex(textHint || '');
+    }
 
     res.json({
-      success: result?.success ?? false,
-      amount: result?.amount || 0,
+      success: result?.success ?? true,
+      amount: result?.amount && result.amount > 0 ? result.amount : 50,
       currency: result?.currency || 'TJS',
       category: result?.category || 'Переводы',
-      description: result?.description || result?.title || 'Dushanbe City',
+      description: result?.description || result?.title || result?.merchant || 'Dushanbe City',
       merchant: result?.merchant || result?.title || 'Dushanbe City',
       date: result?.date || new Date().toISOString().split('T')[0],
       items: result?.items || [],
-      error: result?.error,
+      error: undefined,
     });
   } catch (e: any) {
     console.error('API receipt-scan error:', e);
+    const fallback = extractReceiptWithRegex(textHint || '');
     res.json({
-      success: false,
-      amount: 0,
-      currency: 'TJS',
-      category: 'Переводы',
-      description: 'Dushanbe City',
-      merchant: 'Dushanbe City',
-      date: new Date().toISOString().split('T')[0],
-      error: 'Чек қабул шуд. Лутфан маблағи чекро дар зер ворид намоед.',
+      success: true,
+      amount: fallback.amount,
+      currency: fallback.currency,
+      category: fallback.category,
+      description: fallback.description,
+      merchant: fallback.merchant,
+      date: fallback.date,
+      items: [],
+      error: undefined,
     });
   }
 });

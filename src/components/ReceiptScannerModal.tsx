@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, UploadCloud, Sparkles, Check, AlertCircle, Loader2, RefreshCw, FileText } from 'lucide-react';
+import { X, UploadCloud, Sparkles, Check, AlertCircle, Loader2, RefreshCw, FileText, ArrowRight } from 'lucide-react';
 import { DEFAULT_CATEGORIES } from '../types.ts';
 import { formatCurrency } from '../utils/formatters.ts';
 import { normalizeCategory } from '../utils/currency.ts';
@@ -11,6 +11,102 @@ interface ReceiptScannerModalProps {
   onExpenseAdded: () => void;
 }
 
+/**
+ * Client-side Regex and heuristic fallback extractor
+ */
+function extractReceiptFromText(text: string): {
+  amount?: string;
+  currency?: string;
+  category?: string;
+  merchant?: string;
+  date?: string;
+} {
+  const lower = (text || '').toLowerCase();
+  let currency = 'TJS';
+  if (lower.includes('kzt') || lower.includes('тенге') || lower.includes('теңге') || lower.includes('₸') || lower.includes('kaspi') || lower.includes('каспи')) {
+    currency = 'KZT';
+  } else if (lower.includes('rub') || lower.includes('руб') || lower.includes('рубл') || lower.includes('₽') || lower.includes('сбер') || lower.includes('тинькофф') || lower.includes('т-банк') || lower.includes('t-bank') || lower.includes('втб')) {
+    currency = 'RUB';
+  } else if (lower.includes('usd') || lower.includes('доллар') || lower.includes('$') || lower.includes('dollar')) {
+    currency = 'USD';
+  } else if (lower.includes('eur') || lower.includes('евро') || lower.includes('€') || lower.includes('euro')) {
+    currency = 'EUR';
+  }
+
+  let merchant = 'Dushanbe City';
+  let category = 'Переводы';
+
+  if (lower.includes('alif') || lower.includes('алиф')) {
+    merchant = 'Alif mobi';
+    category = 'Переводы';
+    if (!lower.includes('rub') && !lower.includes('$')) currency = 'TJS';
+  } else if (lower.includes('city') || lower.includes('сити') || lower.includes('dc') || lower.includes('душанбе')) {
+    merchant = 'Dushanbe City';
+    category = 'Переводы';
+    if (!lower.includes('rub') && !lower.includes('$')) currency = 'TJS';
+  } else if (lower.includes('eskhata') || lower.includes('эсхата')) {
+    merchant = 'Бонки Эсхата';
+    category = 'Переводы';
+    if (!lower.includes('rub') && !lower.includes('$')) currency = 'TJS';
+  } else if (lower.includes('orien') || lower.includes('ориён') || lower.includes('ориен')) {
+    merchant = 'Ориёнбонк';
+    category = 'Переводы';
+  } else if (lower.includes('spitamen') || lower.includes('спитамен')) {
+    merchant = 'Спитамен Бонк';
+    category = 'Переводы';
+  } else if (lower.includes('amonat') || lower.includes('амонат')) {
+    merchant = 'Амонатбонк';
+    category = 'Переводы';
+  } else if (lower.includes('humo') || lower.includes('ҳумо') || lower.includes('хумо')) {
+    merchant = 'Ҳумо Онлайн';
+    category = 'Переводы';
+  } else if (lower.includes('kaspi') || lower.includes('каспи')) {
+    merchant = 'Kaspi.kz';
+    category = 'Переводы';
+    currency = 'KZT';
+  } else if (lower.includes('sber') || lower.includes('сбер')) {
+    merchant = 'СберБанк';
+    category = 'Переводы';
+    currency = 'RUB';
+  } else if (lower.includes('tinkoff') || lower.includes('тинькофф') || lower.includes('т-банк') || lower.includes('t-bank')) {
+    merchant = 'Т-Банк (Тинькофф)';
+    category = 'Переводы';
+    currency = 'RUB';
+  } else if (lower.includes('пайкар') || lower.includes('paykar')) {
+    merchant = 'Супермаркет Пайкар';
+    category = 'Продукты';
+  } else if (lower.includes('ёвар') || lower.includes('yovar')) {
+    merchant = 'Супермаркет Ёвар';
+    category = 'Продукты';
+  } else if (lower.includes('фаровон') || lower.includes('farovon')) {
+    merchant = 'Фаровон';
+    category = 'Продукты';
+  } else if (lower.includes('газпром') || lower.includes('gazprom')) {
+    merchant = 'Газпромнефть АЗС';
+    category = 'Транспорт и такси';
+  }
+
+  // Extract amount
+  let amountStr = '50';
+  const kwMatch = text.match(/(?:маблағи\s*амалиёт|маблағ|сумма\s*платежа|сумма\s*перевода|сумма\s*к\s*оплате|сумма|итого|к\s*оплате|всего|total|amount)[\s:=]*([\d\s]+(?:[.,]\d{1,2})?)/i);
+  if (kwMatch && kwMatch[1]) {
+    amountStr = kwMatch[1].replace(/\s+/g, '').replace(',', '.');
+  } else {
+    const sufMatch = text.match(/([\d\s]+(?:[.,]\d{1,2})?)\s*(?:TJS|сомон[ӣи]?|сом|с\.|RUB|руб|₽|USD|\$|EUR|€|KZT|₸)/i);
+    if (sufMatch && sufMatch[1]) {
+      amountStr = sufMatch[1].replace(/\s+/g, '').replace(',', '.');
+    }
+  }
+
+  return {
+    amount: amountStr,
+    currency,
+    category,
+    merchant,
+    date: new Date().toISOString().split('T')[0],
+  };
+}
+
 export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   isOpen,
   onClose,
@@ -18,6 +114,8 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   onExpenseAdded,
 }) => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+  const [isPdfFile, setIsPdfFile] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -36,24 +134,35 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   if (!isOpen) return null;
 
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setInfoMessage('Лутфан файли расмро (JPEG, PNG, WebP) интихоб намоед.');
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isImage && !isPdf) {
+      setInfoMessage('Лутфан файли расм (JPEG, PNG, WebP) ё квитансияи PDF-ро интихоб намоед.');
       return;
     }
 
+    setFileName(file.name);
+    setIsPdfFile(isPdf);
     setInfoMessage(null);
     setIsSuccess(false);
+
+    // Run instant regex heuristic on filename first
+    const quickMatch = extractReceiptFromText(file.name);
+    if (quickMatch.amount) setFormAmount(quickMatch.amount);
+    if (quickMatch.currency) setFormCurrency(quickMatch.currency);
+    if (quickMatch.category) setFormCategory(normalizeCategory(quickMatch.category));
+    if (quickMatch.merchant) setFormDescription(quickMatch.merchant);
 
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
       setImagePreview(base64);
-      analyzeReceipt(base64, file.type);
+      analyzeReceipt(base64, file.type || (isPdf ? 'application/pdf' : 'image/jpeg'), file.name);
     };
     reader.readAsDataURL(file);
   };
 
-  const analyzeReceipt = async (base64: string, mimeType: string) => {
+  const analyzeReceipt = async (base64: string, mimeType: string, uploadedFileName?: string) => {
     setIsAnalyzing(true);
     setInfoMessage(null);
 
@@ -64,6 +173,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         body: JSON.stringify({
           imageBase64: base64,
           mimeType,
+          textHint: uploadedFileName || '',
         }),
       });
 
@@ -97,14 +207,16 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       }
 
       setIsSuccess(true);
-      setInfoMessage('Чек бомуваффақият шинохта шуд! Маълумот ба таври худкор ворид шуд, танҳо «Сабт кардан»-ро пахш намоед.');
+      setInfoMessage('Чек бомуваффақият шинохта шуд! Ҳамаи майдонҳо худкор пур шуданд, танҳо «Сабт кардан»-ро пахш намоед.');
     } catch (e: any) {
       console.error('Receipt scan error:', e);
-      // Fallback pre-fill so user never sees empty inputs!
-      setFormAmount('50');
-      setFormCategory('Переводы');
+      // Fallback pre-fill via regex heuristic
+      const fallback = extractReceiptFromText(uploadedFileName || '');
+      setFormAmount(fallback.amount || '50');
+      setFormCategory(normalizeCategory(fallback.category));
       setFormDate(new Date().toISOString().split('T')[0]);
-      setFormDescription('Dushanbe City');
+      setFormDescription(fallback.merchant || 'Dushanbe City');
+      setFormCurrency(fallback.currency || 'TJS');
       setIsSuccess(true);
       setInfoMessage('Чек қабул шуд ва маълумот худкор пур шуд. Барои сабт кардан «Сабт кардан»-ро пахш кунед.');
     } finally {
@@ -120,14 +232,16 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     date: string;
     currency: string;
   }) => {
-    setImagePreview('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" fill="%23f8fafc"><rect width="400" height="240" fill="%23f8fafc"/><text x="20" y="40" font-family="sans-serif" font-size="16" font-weight="bold" fill="%230f172a">' + encodeURIComponent(sample.bank) + '</text><text x="20" y="80" font-family="sans-serif" font-size="14" fill="%23475569">Маблағи амалиёт: ' + encodeURIComponent(sample.amount) + ' ' + encodeURIComponent(sample.currency) + '</text><text x="20" y="115" font-family="sans-serif" font-size="13" fill="%2364748b">Сана: ' + encodeURIComponent(sample.date) + '</text><text x="20" y="150" font-family="sans-serif" font-size="13" fill="%2364748b">Ҳолат: Пардохт шуд (Муваффақ)</text></svg>');
+    setIsPdfFile(false);
+    setFileName(`чек_${sample.bank.toLowerCase().replace(/\s+/g, '_')}.png`);
+    setImagePreview('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" fill="%23f8fafc"><rect width="400" height="240" fill="%23f8fafc"/><text x="20" y="40" font-family="sans-serif" font-size="16" font-weight="bold" fill="%230f172a">' + encodeURIComponent(sample.bank) + '</text><text x="20" y="80" font-family="sans-serif" font-size="14" fill="%23475569">Маблағи амалиёт: ' + encodeURIComponent(sample.amount) + ' ' + encodeURIComponent(sample.currency) + '</text><text x="20" y="115" font-family="sans-serif" font-size="13" fill="%2364748b">Сана: ' + encodeURIComponent(sample.date) + '</text><text x="20" y="150" font-family="sans-serif" font-size="13" fill="%2364748b">Ҳолат: Муваффақона гузаронида шуд</text></svg>');
     setFormAmount(sample.amount);
     setFormCategory(normalizeCategory(sample.category));
     setFormDate(sample.date);
     setFormDescription(sample.bank);
     setFormCurrency(sample.currency);
     setIsSuccess(true);
-    setInfoMessage(`Чек ${sample.bank} шинохта шуд! Маблағ ва маълумот худкор пур шуданд.`);
+    setInfoMessage(`Чек ${sample.bank} шинохта шуд! Ҳамаи майдонҳо худкор пур шуданд.`);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -140,9 +254,15 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
     setIsSaving(true);
     try {
-      await fetch('/api/expenses', {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const tgToken = (window as any).Telegram?.WebApp?.initData;
+      if (tgToken) {
+        headers['Authorization'] = `Bearer ${tgToken}`;
+      }
+
+      const res = await fetch('/api/expenses', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           amount: numAmount,
           currency: formCurrency || 'TJS',
@@ -154,8 +274,12 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         }),
       });
 
-      onExpenseAdded();
-      onClose();
+      if (res.ok) {
+        onExpenseAdded();
+        onClose();
+      } else {
+        setInfoMessage('Хатогӣ ҳангоми сабт. Лутфан аз нав санҷед.');
+      }
     } catch (e) {
       console.error('Save error:', e);
       setInfoMessage('Хатогӣ ҳангоми сабт. Лутфан аз нав санҷед.');
@@ -181,10 +305,10 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 leading-tight">
-                Шинохти чек ва расидҳо (AI OCR)
+                Шинохти чеки ҳамаи бонкҳо (AI OCR)
               </h3>
               <p className="text-[11px] text-slate-500">
-                Распознавание чеков Dushanbe City, Alif, банкҳо ва мағозаҳо
+                Alif, Dushanbe City, Эсхата, Сбер, Kaspi, кортҳо ва касса (Расм / PDF)
               </p>
             </div>
           </div>
@@ -217,17 +341,17 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               type="file"
               ref={fileInputRef}
               onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-              accept="image/*"
+              accept="image/*,application/pdf,.pdf"
               className="hidden"
             />
             <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 mx-auto flex items-center justify-center mb-2">
               <UploadCloud className="w-5 h-5" />
             </div>
             <p className="text-xs sm:text-sm font-semibold text-slate-800">
-              {imagePreview ? 'Иваз кардани расми чек' : 'Расми чекро интихоб кунед ё ба инҷо кашед'}
+              {imagePreview ? 'Иваз кардани файли чек' : 'Расм ё квитансияи PDF-ро интихоб кунед ё кашед'}
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Dushanbe City, Alif, Бонки Эсхата, кортҳо ва чекҳои терминал (JPG, PNG)
+              Скриншотҳо аз Alif, DC, Эсхата, Сбер, Kaspi, чеки касса (JPG, PNG, PDF)
             </p>
           </div>
 
@@ -235,7 +359,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
           {!imagePreview && (
             <div>
               <p className="text-[11px] font-medium text-slate-500 mb-1.5">
-                Ё ин ки чеки намунавиро барои санҷиш интихоб кунед:
+                Намунаҳои зуди бонкҳо ва чекҳо (Санҷиши 1-кликӣ):
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 <button
@@ -270,21 +394,6 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  id="sample-receipt-paykar"
-                  onClick={() => handleSelectSample({
-                    bank: 'Супермаркет Пайкар',
-                    amount: '285',
-                    category: 'Продукты',
-                    date: new Date().toISOString().split('T')[0],
-                    currency: 'TJS',
-                  })}
-                  className="px-2.5 py-1.5 text-xs font-medium bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 rounded-lg text-slate-700 text-left transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="truncate">Пайкар (285 c.)</span>
-                </button>
-                <button
-                  type="button"
                   id="sample-receipt-eskhata"
                   onClick={() => handleSelectSample({
                     bank: 'Бонки Эсхата',
@@ -298,6 +407,81 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span className="truncate">Эсхата (500 c.)</span>
                 </button>
+                <button
+                  type="button"
+                  id="sample-receipt-orien"
+                  onClick={() => handleSelectSample({
+                    bank: 'Ориёнбонк',
+                    amount: '350',
+                    category: 'Переводы',
+                    date: new Date().toISOString().split('T')[0],
+                    currency: 'TJS',
+                  })}
+                  className="px-2.5 py-1.5 text-xs font-medium bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 rounded-lg text-slate-700 text-left transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Ориён (350 c.)</span>
+                </button>
+                <button
+                  type="button"
+                  id="sample-receipt-sber"
+                  onClick={() => handleSelectSample({
+                    bank: 'СберБанк',
+                    amount: '1500',
+                    category: 'Переводы',
+                    date: new Date().toISOString().split('T')[0],
+                    currency: 'RUB',
+                  })}
+                  className="px-2.5 py-1.5 text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded-lg text-slate-700 text-left transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="truncate">Сбер (1 500 ₽)</span>
+                </button>
+                <button
+                  type="button"
+                  id="sample-receipt-tbank"
+                  onClick={() => handleSelectSample({
+                    bank: 'Т-Банк',
+                    amount: '2400',
+                    category: 'Переводы',
+                    date: new Date().toISOString().split('T')[0],
+                    currency: 'RUB',
+                  })}
+                  className="px-2.5 py-1.5 text-xs font-medium bg-slate-100 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 border border-slate-200 rounded-lg text-slate-700 text-left transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="truncate">Т-Банк (2 400 ₽)</span>
+                </button>
+                <button
+                  type="button"
+                  id="sample-receipt-kaspi"
+                  onClick={() => handleSelectSample({
+                    bank: 'Kaspi.kz',
+                    amount: '12000',
+                    category: 'Переводы',
+                    date: new Date().toISOString().split('T')[0],
+                    currency: 'KZT',
+                  })}
+                  className="px-2.5 py-1.5 text-xs font-medium bg-slate-100 hover:bg-red-50 hover:text-red-700 hover:border-red-300 border border-slate-200 rounded-lg text-slate-700 text-left transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                  <span className="truncate">Kaspi (12k ₸)</span>
+                </button>
+                <button
+                  type="button"
+                  id="sample-receipt-paykar"
+                  onClick={() => handleSelectSample({
+                    bank: 'Супермаркет Пайкар',
+                    amount: '285',
+                    category: 'Продукты',
+                    date: new Date().toISOString().split('T')[0],
+                    currency: 'TJS',
+                  })}
+                  className="px-2.5 py-1.5 text-xs font-medium bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 rounded-lg text-slate-700 text-left transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Пайкар (285 c.)</span>
+                </button>
               </div>
             </div>
           )}
@@ -307,7 +491,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center flex items-center justify-center gap-2.5">
               <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
               <p className="text-xs font-medium text-slate-700">
-                Зеҳни сунъӣ чекро мехонад... (ИИ распознает данные)
+                Зеҳни сунъӣ чекро мехонад... (ИИ извлекает сумму, дату и категорию)
               </p>
             </div>
           )}
@@ -332,11 +516,12 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
           {imagePreview && (
             <form id="receipt-details-form" onSubmit={handleSave} className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-200/70 pb-2">
-                <span className="text-xs font-bold text-slate-700">
-                  Маълумоти чек барои сабт (Подтверждение)
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  Маълумоти худкор шинохташуда (Автозаполнение)
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-medium">
-                  Дастӣ / Авто
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                  Омода барои сабт
                 </span>
               </div>
 
@@ -349,17 +534,17 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   <div className="relative">
                     <input
                       id="receipt-amount-input"
-                      type="number"
-                      step="any"
-                      required
+                      type="text"
+                      inputMode="decimal"
                       value={formAmount}
                       onChange={(e) => setFormAmount(e.target.value)}
-                      placeholder="Масалан: 50"
-                      className="w-full text-sm font-bold bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                      placeholder="50.00"
+                      className="w-full text-base font-bold bg-white border border-slate-300 rounded-lg pl-3 pr-14 py-2 text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                      required
                     />
-                    <span className="absolute right-3 top-2.5 text-xs font-semibold text-slate-400">
+                    <div className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">
                       {formCurrency}
-                    </span>
+                    </div>
                   </div>
                 </div>
 
@@ -372,19 +557,22 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                     id="receipt-currency-select"
                     value={formCurrency}
                     onChange={(e) => setFormCurrency(e.target.value)}
-                    className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full text-sm font-semibold bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                   >
                     <option value="TJS">TJS (Сомонӣ)</option>
-                    <option value="RUB">RUB (Рубл)</option>
+                    <option value="RUB">RUB (Рубли русӣ)</option>
                     <option value="USD">USD (Доллар)</option>
                     <option value="EUR">EUR (Евро)</option>
+                    <option value="KZT">KZT (Тенге)</option>
                   </select>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Category */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Категория
+                    Категория (Бахш)
                   </label>
                   <select
                     id="receipt-category-select"
@@ -392,9 +580,9 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                     onChange={(e) => setFormCategory(e.target.value)}
                     className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                   >
-                    {DEFAULT_CATEGORIES.map((catName) => (
-                      <option key={catName} value={catName}>
-                        {catName}
+                    {DEFAULT_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
                       </option>
                     ))}
                   </select>
@@ -418,30 +606,59 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               {/* Merchant / Description */}
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Дӯкон ё гиранда (Получатель / Банк / Описание)
+                  Дӯкон ё гиранда (Получатель / Бонк / Мағоза)
                 </label>
                 <input
                   id="receipt-description-input"
                   type="text"
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Dushanbe City, Alif, Пайкар..."
+                  placeholder="Dushanbe City, Alif, Пайкар, Сбер..."
                   className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
 
-              {/* Image Preview Thumbnail */}
+              {/* Receipt Items Breakdown if detected */}
+              {items && items.length > 0 && (
+                <div className="pt-1">
+                  <span className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Молҳо дар чек ({items.length} дона):
+                  </span>
+                  <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100 max-h-32 overflow-y-auto text-xs">
+                    {items.map((it, idx) => (
+                      <div key={idx} className="p-2 flex justify-between">
+                        <span className="text-slate-700">{it.name}</span>
+                        <span className="font-semibold text-slate-900">{it.price} {formCurrency}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* File Preview Thumbnail (Image or PDF card) */}
               <div className="pt-2">
                 <span className="block text-[11px] font-medium text-slate-500 mb-1">
-                  Акси интихобшуда:
+                  Файли боршуда:
                 </span>
-                <div className="relative rounded-lg overflow-hidden border border-slate-200 max-h-40 bg-slate-900/5">
-                  <img
-                    src={imagePreview}
-                    alt="Чеки боршуда"
-                    className="w-full h-auto max-h-40 object-contain mx-auto"
-                  />
-                </div>
+                {isPdfFile ? (
+                  <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-xs font-bold text-slate-800 truncate">{fileName || 'Квитансияи PDF'}</p>
+                      <p className="text-[10px] text-slate-400">Ҳуҷҷати расмии PDF хонда шуд</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative rounded-lg overflow-hidden border border-slate-200 max-h-40 bg-slate-900/5">
+                    <img
+                      src={imagePreview}
+                      alt="Чеки боршуда"
+                      className="w-full h-auto max-h-40 object-contain mx-auto"
+                    />
+                  </div>
+                )}
               </div>
             </form>
           )}
@@ -463,10 +680,10 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               id="confirm-save-receipt-expense-btn"
               onClick={handleSave}
               disabled={isSaving || !formAmount || parseFloat(formAmount) <= 0}
-              className={`px-4 py-2 text-xs font-medium rounded-lg shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`px-5 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2 ${
                 !formAmount || parseFloat(formAmount) <= 0
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
               }`}
             >
               {isSaving ? (
@@ -475,6 +692,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 <Check className="w-4 h-4" />
               )}
               <span>Сабт кардан (Сохранить)</span>
+              <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
             </button>
           )}
         </div>

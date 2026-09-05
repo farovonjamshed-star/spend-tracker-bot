@@ -412,7 +412,25 @@ class Database {
         isOverLimit,
         color: CATEGORY_COLORS[cat] || '#94a3b8',
       };
-    }).sort((a, b) => b.amount - a.amount);
+    });
+
+    // Also include any user configured limits that had 0 expenses this month
+    for (const [cat, rawLimit] of Object.entries(user.categoryLimits || {})) {
+      if (rawLimit && rawLimit > 0 && !catTotals[cat]) {
+        const limit = roundVal(convertAmount(rawLimit, 'TJS', targetCurrency));
+        byCategory.push({
+          category: cat,
+          amount: 0,
+          count: 0,
+          percentage: 0,
+          limit,
+          isOverLimit: false,
+          color: CATEGORY_COLORS[cat] || '#94a3b8',
+        });
+      }
+    }
+
+    byCategory.sort((a, b) => b.amount - a.amount);
 
     // Days array for current month (all days up to today or all 30 days)
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -440,7 +458,11 @@ class Database {
       expenseCount: expenses.length,
       byCategory,
       byDay,
-      topExpenses: expenses.slice(0, 5),
+      topExpenses: expenses.slice(0, 5).map((e) => ({
+        ...e,
+        amount: roundVal(convertAmount(e.amount, e.currency || 'TJS', targetCurrency)),
+        currency: targetCurrency,
+      })),
     };
   }
 

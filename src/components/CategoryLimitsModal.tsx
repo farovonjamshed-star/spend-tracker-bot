@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, ShieldCheck, AlertCircle, Save } from 'lucide-react';
 import { DEFAULT_CATEGORIES, UserProfile } from '../types.ts';
 import { formatCurrency } from '../utils/formatters.ts';
+import { convertCurrency, roundCurrency } from '../utils/currency.ts';
 
 interface CategoryLimitsModalProps {
   isOpen: boolean;
@@ -21,7 +22,13 @@ export const CategoryLimitsModal: React.FC<CategoryLimitsModalProps> = ({
   const [limits, setLimits] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     DEFAULT_CATEGORIES.forEach((cat) => {
-      initial[cat] = user?.categoryLimits?.[cat] ? String(user.categoryLimits[cat]) : '';
+      const rawLimit = user?.categoryLimits?.[cat];
+      if (rawLimit && rawLimit > 0) {
+        const converted = roundCurrency(convertCurrency(rawLimit, 'TJS', currency), currency);
+        initial[cat] = String(converted);
+      } else {
+        initial[cat] = '';
+      }
     });
     return initial;
   });
@@ -39,7 +46,7 @@ export const CategoryLimitsModal: React.FC<CategoryLimitsModalProps> = ({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Save all categories with non-empty values
+      // Save all categories with values converted to base
       for (const [category, val] of Object.entries(limits)) {
         const num = parseFloat(String(val));
         await fetch('/api/limits', {
@@ -48,6 +55,7 @@ export const CategoryLimitsModal: React.FC<CategoryLimitsModalProps> = ({
           body: JSON.stringify({
             category,
             monthlyLimit: isNaN(num) ? 0 : num,
+            currency,
           }),
         });
       }
