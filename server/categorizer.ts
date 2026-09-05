@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import type {
   ParsedExpenseInput,
   ParsedReceiptResult,
@@ -173,7 +173,14 @@ function getGenAI(): GoogleGenAI | null {
   if (genAIClient) return genAIClient;
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
-  genAIClient = new GoogleGenAI({ apiKey: key });
+  genAIClient = new GoogleGenAI({
+    apiKey: key,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
+    },
+  });
   return genAIClient;
 }
 
@@ -287,6 +294,11 @@ ${context?.statsSummary ? `Текущая статистика трат поль
       contents: [
         { text: `${systemPrompt}\n\nСообщение пользователя: ${userText}` },
       ],
+      config: {
+        thinkingConfig: {
+          thinkingLevel: ThinkingLevel.LOW,
+        },
+      },
     });
 
     return response.text?.trim() || fallback;
@@ -381,8 +393,10 @@ export async function parseReceiptWithGemini(
   "success": true
 }`;
 
-  const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
-  let lastError: any = null;
+  const modelsToTry: Array<{ model: string; thinkingLevel?: ThinkingLevel }> = [
+    { model: 'gemini-3.8-flash', thinkingLevel: ThinkingLevel.LOW },
+    { model: 'gemini-3.1-flash-lite', thinkingLevel: ThinkingLevel.MINIMAL },
+  ];
   let responseText = '';
 
   const imagePart = {
@@ -395,17 +409,22 @@ export async function parseReceiptWithGemini(
     text: prompt,
   };
 
-  for (const modelName of modelsToTry) {
+  for (const item of modelsToTry) {
+    let timer: NodeJS.Timeout | null = null;
     try {
       const callPromise = ai.models.generateContent({
-        model: modelName,
+        model: item.model,
         contents: { parts: [imagePart, textPart] },
+        config: {
+          responseMimeType: 'application/json',
+          ...(item.thinkingLevel ? { thinkingConfig: { thinkingLevel: item.thinkingLevel } } : {}),
+        },
       });
 
-      // 14 seconds timeout
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout with ${modelName}`)), 14000)
-      );
+      // 35 seconds timeout to allow model inference and network transfer
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Timeout with ${item.model}`)), 35000);
+      });
 
       const response: any = await Promise.race([callPromise, timeoutPromise]);
       responseText = (response?.text || '').trim();
@@ -413,8 +432,9 @@ export async function parseReceiptWithGemini(
         break; // Successfully got response
       }
     } catch (err: any) {
-      console.warn(`Attempt with ${modelName} failed:`, err?.message || err);
-      lastError = err;
+      console.warn(`Attempt with ${item.model} failed:`, err?.message || err);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
