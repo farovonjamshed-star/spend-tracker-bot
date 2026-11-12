@@ -24,65 +24,78 @@ export function verifyTelegramWebAppData(
   botToken: string
 ): { verified: boolean; user?: any; authDate?: number } {
   if (!initData || !botToken) return { verified: false };
+
   try {
     const params = new URLSearchParams(initData);
     const hash = params.get('hash');
-    if (!hash) return { verified: false };
+    const authDateRaw = params.get('auth_date');
+
+    if (!hash || !/^[a-f0-9]{64}$/i.test(hash) || !authDateRaw || !/^\\d+$/.test(authDateRaw)) {
+      return { verified: false };
+    }
+
+    const authDate = Number(authDateRaw);
+    const now = Math.floor(Date.now() / 1000);
+    const maxAgeSeconds = 24 * 60 * 60;
+    if (!Number.isSafeInteger(authDate) || authDate > now + 300 || now - authDate > maxAgeSeconds) {
+      return { verified: false };
+    }
 
     params.delete('hash');
     const sortedKeys = Array.from(params.keys()).sort();
-    const dataCheckString = sortedKeys.map((key) => `${key}=${params.get(key)}`).join('\n');
+    const dataCheckString = sortedKeys.map((key) => `${key}=${params.get(key)}`).join('\\n');
 
-    // secret_key = HMAC-SHA256(key="WebAppData", data=bot_token)
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
-    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest();
+    const suppliedHash = Buffer.from(hash, 'hex');
+    const verified = suppliedHash.length === calculatedHash.length &&
+      crypto.timingSafeEqual(calculatedHash, suppliedHash);
 
-    const verified = calculatedHash.toLowerCase() === hash.toLowerCase();
+    if (!verified) return { verified: false };
+
     const userStr = params.get('user');
     const user = userStr ? JSON.parse(userStr) : undefined;
-    const authDate = params.get('auth_date') ? parseInt(params.get('auth_date')!, 10) : undefined;
+    if (!user || !Number.isSafeInteger(Number(user.id)) || Number(user.id) <= 0) {
+      return { verified: false };
+    }
 
-    return { verified, user, authDate };
+    return { verified: true, user, authDate };
   } catch (err) {
     console.error('Telegram initData HMAC validation error:', err);
     return { verified: false };
   }
 }
 
-// Helper to extract authenticated user from header or query token
+// Resolve the current user only from a server-issued session token.
+// Query tokens are retained only for the legacy one-click CSV download link.
 function getAuthUser(req: express.Request) {
   const authHeader = req.headers.authorization;
-  const queryToken = req.query.token as string | undefined;
-  const token = authHeader ? authHeader.replace('Bearer ', '').trim() : queryToken;
+  const bearerToken = authHeader?.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim();
+  const legacyExportToken = req.path === '/api/export-csv'
+    ? (req.query.token as string | undefined)
+    : undefined;
+  const token = bearerToken || legacyExportToken;
 
-  if (token) {
-    const user = db.getUserByToken(token);
-    if (user) return user;
+  return token ? db.getUserByToken(token) : null;
+}
+
+function requireAdmin(req: express.Request, res: express.Response): boolean {
+  const configuredSecret = process.env.ADMIN_SECRET;
+  const suppliedSecret = req.headers['x-admin-secret'];
+
+  if (!configuredSecret || typeof suppliedSecret !== 'string') {
+    res.status(503).json({ error: 'Bot configuration is disabled: ADMIN_SECRET is not configured' });
+    return false;
   }
 
-  // Check header for Telegram WebApp initData if passed directly
-  const initDataHeader = req.headers['x-telegram-init-data'] as string | undefined;
-  if (initDataHeader) {
-    try {
-      const params = new URLSearchParams(initDataHeader);
-      const userStr = params.get('user');
-      if (userStr) {
-        const u = JSON.parse(userStr);
-        if (u.id) {
-          return db.getUser(String(u.id), u.first_name, u.username);
-        }
-      }
-    } catch {}
+  const expected = Buffer.from(configuredSecret);
+  const supplied = Buffer.from(suppliedSecret);
+  if (expected.length !== supplied.length || !crypto.timingSafeEqual(expected, supplied)) {
+    res.status(403).json({ error: 'Forbidden' });
+    return false;
   }
 
-  // Check custom Telegram user ID header (useful for testing and API calls)
-  const tgUserIdHeader = req.headers['x-telegram-user-id'] as string | undefined;
-  if (tgUserIdHeader) {
-    return db.getUser(tgUserIdHeader.trim());
-  }
-
-  // Fallback to demo user if no token provided
-  return db.getUser('demo_judge');
+  return true;
 }
 
 // 1. Bot status & configuration
@@ -91,6 +104,7 @@ app.get('/api/bot-status', (req, res) => {
 });
 
 app.post('/api/bot-config/token', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const { token } = req.body;
   if (!token) {
     res.status(400).json({ error: 'Token is required' });
@@ -101,8 +115,26 @@ app.post('/api/bot-config/token', async (req, res) => {
 });
 
 app.post('/api/bot-config/restart', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
   await telegramService.restart();
   res.json(telegramService.getStatus());
+});
+
+// All remaining API routes require a valid server-issued session.
+// The token exchange endpoint is exempt because it validates a submitted session token.
+app.use('/api', (req, res, next) => {
+  if (req.path === '/auth/token') return next();
+  if (process.env.NODE_ENV !== 'production' &&
+      (req.path === '/auth/switch-account' || req.path === '/auth/demo-login')) {
+    return next();
+  }
+
+  const user = getAuthUser(req);
+  if (!user) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  next();
 });
 
 // 2. Auth & Current User
@@ -116,58 +148,30 @@ app.get('/api/me', (req, res) => {
 
 // Telegram Web App authentication (handles initData with HMAC-SHA256 and/or user payload)
 app.post('/api/auth/telegram-webapp', (req, res) => {
-  const { initData, user: rawUser } = req.body;
+  const { initData } = req.body;
   const botToken = telegramService.getToken() || process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
 
-  let telegramId = '';
-  let firstName = 'Telegram User';
-  let username = '';
-  let isVerified = false;
-
-  if (initData) {
-    if (botToken) {
-      const verification = verifyTelegramWebAppData(initData, botToken);
-      if (verification.verified && verification.user) {
-        isVerified = true;
-        telegramId = String(verification.user.id);
-        firstName = verification.user.first_name || firstName;
-        username = verification.user.username || username;
-      }
-    }
-
-    // Fallback if bot token is not configured yet or during simulator test
-    if (!telegramId) {
-      try {
-        const params = new URLSearchParams(initData);
-        const userStr = params.get('user');
-        if (userStr) {
-          const u = JSON.parse(userStr);
-          if (u.id) {
-            telegramId = String(u.id);
-            firstName = u.first_name || firstName;
-            username = u.username || username;
-          }
-        }
-      } catch (e) {
-        console.error('Error parsing initData:', e);
-      }
-    }
+  if (!botToken) {
+    res.status(503).json({ error: 'Telegram authentication is not configured' });
+    return;
   }
-
-  if (!telegramId && rawUser && rawUser.id) {
-    telegramId = String(rawUser.id);
-    firstName = rawUser.first_name || firstName;
-    username = rawUser.username || username;
-  }
-
-  if (!telegramId) {
-    res.status(400).json({ error: 'Не удалось получить данные Telegram пользователя' });
+  if (typeof initData !== 'string' || !initData) {
+    res.status(400).json({ error: 'Telegram initData is required' });
     return;
   }
 
+  const verification = verifyTelegramWebAppData(initData, botToken);
+  if (!verification.verified || !verification.user) {
+    res.status(401).json({ error: 'Invalid or expired Telegram authentication data' });
+    return;
+  }
+
+  const telegramId = String(verification.user.id);
+  const firstName = verification.user.first_name || 'Telegram User';
+  const username = verification.user.username || '';
   const user = db.getUser(telegramId, firstName, username);
   const token = db.createSession(telegramId);
-  res.json({ success: true, token, user, verified: isVerified });
+  res.json({ success: true, token, user, verified: true });
 });
 
 // Webhook endpoint for Telegram Bot (for Render production deployment)
