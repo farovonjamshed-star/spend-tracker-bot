@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header.tsx';
 import { StatsCards } from './components/StatsCards.tsx';
 import { AnalyticsSection } from './components/AnalyticsSection.tsx';
@@ -40,6 +40,7 @@ export default function App() {
     const urlToken = params.get('token');
     return urlToken || localStorage.getItem('expense_app_token');
   });
+  const authInitializationStarted = useRef(false);
 
   // Navigation tab state: 5 tabs total (Overview, Analytics, Add, History, Settings)
   const [activeNavTab, setActiveNavTab] = useState<NavTab>('overview');
@@ -121,6 +122,9 @@ export default function App() {
 
   // Initialize and check Telegram WebApp
   useEffect(() => {
+    if (authInitializationStarted.current) return;
+    authInitializationStarted.current = true;
+
     const initAuth = async () => {
       // Remove handoff credentials from the address bar before any auth branch can return.
       const params = new URLSearchParams(window.location.search);
@@ -184,8 +188,13 @@ export default function App() {
       }
     };
 
-    initAuth().then(() => fetchData());
-  }, [fetchData]);
+    void initAuth();
+  }, []);
+
+  // Load private data only after a session token is available.
+  useEffect(() => {
+    if (authToken) void fetchData();
+  }, [authToken, fetchData]);
 
   // Switch account
   const handleSwitchAccount = async (targetId: string, name?: string) => {
