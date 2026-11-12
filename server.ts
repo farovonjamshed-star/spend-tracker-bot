@@ -1,15 +1,13 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import { verifyTelegramWebAppData } from './server/auth.ts';
 import { createServer as createViteServer } from 'vite';
-import dotenv from 'dotenv';
 import { db, convertAmount } from './server/db.ts';
 import { telegramService } from './server/telegram.ts';
 import { parseExpenseMessage, parseReceiptWithGemini, extractReceiptWithRegex } from './server/categorizer.ts';
 import { getCategoryLocalizedName, formatAmountAndCurrency } from './src/types.ts';
-
-dotenv.config();
 
 const app = express();
 const PORT = 3000;
