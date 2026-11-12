@@ -40,6 +40,7 @@ export default function App() {
     const urlToken = params.get('token');
     return urlToken || localStorage.getItem('expense_app_token');
   });
+  const [authReady, setAuthReady] = useState(false);
   const authInitializationStarted = useRef(false);
 
   // Navigation tab state: 5 tabs total (Overview, Analytics, Add, History, Settings)
@@ -159,6 +160,7 @@ export default function App() {
                 localStorage.setItem('expense_app_token', authData.token);
                 setAuthToken(authData.token);
                 setUser(authData.user);
+                setAuthReady(true);
                 return;
               }
             }
@@ -186,15 +188,16 @@ export default function App() {
           console.error(e);
         }
       }
+      setAuthReady(true);
     };
 
     void initAuth();
   }, []);
 
-  // Load private data only after a session token is available.
+  // Load private data only after auth initialization has selected the active session.
   useEffect(() => {
-    if (authToken) void fetchData();
-  }, [authToken, fetchData]);
+    if (authReady && authToken) void fetchData();
+  }, [authReady, authToken, fetchData]);
 
   // Switch account
   const handleSwitchAccount = async (targetId: string, name?: string) => {
