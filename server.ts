@@ -71,7 +71,8 @@ export function verifyTelegramWebAppData(
 function getAuthUser(req: express.Request) {
   const authHeader = req.headers.authorization;
   const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  const legacyExportToken = req.path === '/api/export-csv'
+  const requestPath = req.originalUrl.split('?')[0];
+  const legacyExportToken = requestPath === '/api/export-csv'
     ? (req.query.token as string | undefined)
     : undefined;
   const token = bearerToken || legacyExportToken;
