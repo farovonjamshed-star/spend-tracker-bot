@@ -5,6 +5,7 @@ import { describeTelegramTransportError, getTelegramRetryDelay, shouldRetryTeleg
 test('classifies DNS, timeout, connection and TLS errors without leaking raw error details', () => {
   assert.match(describeTelegramTransportError({ cause: { code: 'ENOTFOUND' } }), /DNS/);
   assert.match(describeTelegramTransportError({ cause: { code: 'ETIMEDOUT' } }), /timed out/);
+  assert.match(describeTelegramTransportError({ name: 'TimeoutError' }), /timed out/);
   assert.match(describeTelegramTransportError({ cause: { code: 'ECONNRESET' } }), /connection failed/);
   assert.match(describeTelegramTransportError({ cause: { code: 'CERT_HAS_EXPIRED' } }), /TLS/);
   assert.equal(describeTelegramTransportError(new Error('secret token should not be logged')), 'Telegram API network request failed');
