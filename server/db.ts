@@ -112,12 +112,7 @@ class Database {
       createdAt: Date.now(),
     };
 
-    // Pre-create session for instant judge preview login
-    this.data.sessions['demo-session-token'] = {
-      telegramId: demoId,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-    };
+    // Demo data is seeded for local preview, but no reusable demo session is created.
 
     sampleExpenses.forEach((item, index) => {
       const d = new Date(now);
