@@ -123,7 +123,7 @@ app.post('/api/bot-config/restart', async (req, res) => {
 // All remaining API routes require a valid server-issued session.
 // The token exchange endpoint is exempt because it validates a submitted session token.
 app.use('/api', (req, res, next) => {
-  if (req.path === '/auth/token') return next();
+  if (req.path === '/auth/token' || req.path === '/auth/telegram-webapp') return next();
   if (process.env.NODE_ENV !== 'production' &&
       (req.path === '/auth/switch-account' || req.path === '/auth/demo-login')) {
     return next();
