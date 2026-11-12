@@ -182,7 +182,8 @@ class Database {
   // Sessions
   createSession(telegramId: string): string {
     const token = crypto.randomBytes(24).toString('hex');
-    this.data.sessions[token] = {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    this.data.sessions[tokenHash] = {
       telegramId,
       createdAt: Date.now(),
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
@@ -192,10 +193,20 @@ class Database {
   }
 
   getUserByToken(token: string): UserProfile | null {
-    const session = this.data.sessions[token];
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    let session = this.data.sessions[tokenHash];
+
+    // Migrate older plaintext session keys on first successful use.
+    if (!session && this.data.sessions[token]) {
+      session = this.data.sessions[token];
+      delete this.data.sessions[token];
+      this.data.sessions[tokenHash] = session;
+      this.save();
+    }
+
     if (!session) return null;
     if (Date.now() > session.expiresAt) {
-      delete this.data.sessions[token];
+      delete this.data.sessions[tokenHash];
       this.save();
       return null;
     }
