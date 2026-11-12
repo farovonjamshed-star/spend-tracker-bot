@@ -18,7 +18,7 @@ app.use(express.json({ limit: '15mb' }));
 
 // Resolve the current user only from a server-issued session token.
 // Query tokens are retained only for the legacy one-click CSV download link.
-function getAuthUser(req: express.Request) {
+function findAuthUser(req: express.Request) {
   const authHeader = req.headers.authorization;
   const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   const requestPath = req.originalUrl.split('?')[0];
@@ -28,6 +28,12 @@ function getAuthUser(req: express.Request) {
   const token = bearerToken || legacyExportToken;
 
   return token ? db.getUserByToken(token) : null;
+}
+
+function getAuthUser(req: express.Request) {
+  const user = findAuthUser(req);
+  if (!user) throw new Error('Authentication required');
+  return user;
 }
 
 function requireAdmin(req: express.Request, res: express.Response): boolean {
@@ -96,7 +102,7 @@ app.use('/api', (req, res, next) => {
     return next();
   }
 
-  const user = getAuthUser(req);
+  const user = findAuthUser(req);
   if (!user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
