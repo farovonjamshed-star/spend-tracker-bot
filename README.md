@@ -109,8 +109,12 @@ APP_URL="https://spend-tracker-bot-v87h.onrender.com"
 # Ключ Google Gemini API для распознавания чеков и умного парсинга
 GEMINI_API_KEY="AIzaSy..."
 
-# Секрет для сессий и WebApp авторизации
-JWT_SECRET="super-secret-key-telegram-expense-tracker"
+# Секрет для административных API /api/bot-config/*
+# Создайте длинное случайное значение и храните только в переменных окружения
+ADMIN_SECRET="replace-with-a-long-random-secret"
+
+# Секрет для проверки Telegram webhook (если webhook будет настроен)
+TELEGRAM_WEBHOOK_SECRET="replace-with-telegram-webhook-secret"
 
 # Путь к хранилищу базы данных (по умолчанию ./data/database.json)
 DATABASE_URL="file:./data/database.json"
@@ -121,6 +125,16 @@ PORT=3000
 
 ---
 
+## 🔐 Важные замечания по безопасности
+
+- Авторизация Mini App принимает только `initData`, подпись которого проверена на сервере через HMAC-SHA256.
+- `auth_date` проверяется: данные старше 24 часов и данные из будущего отклоняются.
+- API-запросы, кроме публичных точек обмена/проверки входа, требуют серверный `Bearer` session token.
+- Вход по произвольному Telegram ID и demo-login разрешены только вне production.
+- Маршруты настройки бота требуют `ADMIN_SECRET` в заголовке `X-Admin-Secret`; без него изменение конфигурации отключено.
+- Telegram webhook принимает запросы только при настроенном `TELEGRAM_WEBHOOK_SECRET` и корректном заголовке `X-Telegram-Bot-Api-Secret-Token`.
+- Сессионные токены передаются в API через `Authorization: Bearer ...`. Старый токен в URL удаляется из адресной строки после обработки; токен в query допускается только для совместимости старой ссылки CSV.
+- Для production используйте HTTPS и храните все секреты только в переменных окружения/secret manager.
 ## 📦 Локальный запуск
 
 1. **Клонируйте репозиторий:**
