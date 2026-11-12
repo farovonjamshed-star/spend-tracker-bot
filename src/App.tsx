@@ -122,6 +122,16 @@ export default function App() {
   // Initialize and check Telegram WebApp
   useEffect(() => {
     const initAuth = async () => {
+      // Remove handoff credentials from the address bar before any auth branch can return.
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        params.delete('token');
+        const cleanQuery = params.toString();
+        window.history.replaceState({}, document.title,
+          window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '') + window.location.hash);
+      }
+
       // 1. If launched inside Telegram WebApp
       const tg = (window as any).Telegram?.WebApp;
       if (tg) {
@@ -154,17 +164,10 @@ export default function App() {
         }
       }
 
-      // 2. Save token if in URL (?token=...)
-      const params = new URLSearchParams(window.location.search);
-      const urlToken = params.get('token');
+      // 2. Exchange the one-time handoff token for a server session.
       if (urlToken) {
         localStorage.setItem('expense_app_token', urlToken);
         setAuthToken(urlToken);
-        // Remove the credential from the address bar and browser history as soon as it is consumed.
-        params.delete('token');
-        const cleanQuery = params.toString();
-        window.history.replaceState({}, document.title,
-          window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '') + window.location.hash);
         try {
           const verifyRes = await fetch('/api/auth/token', {
             method: 'POST',
