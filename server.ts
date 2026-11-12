@@ -30,7 +30,7 @@ export function verifyTelegramWebAppData(
     const hash = params.get('hash');
     const authDateRaw = params.get('auth_date');
 
-    if (!hash || !/^[a-f0-9]{64}$/i.test(hash) || !authDateRaw || !/^\\d+$/.test(authDateRaw)) {
+    if (!hash || !/^[a-f0-9]{64}$/i.test(hash) || !authDateRaw || !/^\d+$/.test(authDateRaw)) {
       return { verified: false };
     }
 
@@ -43,7 +43,7 @@ export function verifyTelegramWebAppData(
 
     params.delete('hash');
     const sortedKeys = Array.from(params.keys()).sort();
-    const dataCheckString = sortedKeys.map((key) => `${key}=${params.get(key)}`).join('\\n');
+    const dataCheckString = sortedKeys.map((key) => `${key}=${params.get(key)}`).join('\n');
 
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
     const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest();
@@ -70,7 +70,7 @@ export function verifyTelegramWebAppData(
 // Query tokens are retained only for the legacy one-click CSV download link.
 function getAuthUser(req: express.Request) {
   const authHeader = req.headers.authorization;
-  const bearerToken = authHeader?.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim();
+  const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   const legacyExportToken = req.path === '/api/export-csv'
     ? (req.query.token as string | undefined)
     : undefined;
@@ -124,6 +124,22 @@ app.post('/api/bot-config/restart', async (req, res) => {
 // The token exchange endpoint is exempt because it validates a submitted session token.
 app.use('/api', (req, res, next) => {
   if (req.path === '/auth/token' || req.path === '/auth/telegram-webapp') return next();
+
+  if (req.path === '/telegram/webhook') {
+    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    const suppliedSecret = req.headers['x-telegram-bot-api-secret-token'];
+    if (!webhookSecret || typeof suppliedSecret !== 'string') {
+      res.status(503).json({ error: 'Telegram webhook secret is not configured' });
+      return;
+    }
+    const expected = Buffer.from(webhookSecret);
+    const supplied = Buffer.from(suppliedSecret);
+    if (expected.length !== supplied.length || !crypto.timingSafeEqual(expected, supplied)) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    return next();
+  }
   if (process.env.NODE_ENV !== 'production' &&
       (req.path === '/auth/switch-account' || req.path === '/auth/demo-login')) {
     return next();
