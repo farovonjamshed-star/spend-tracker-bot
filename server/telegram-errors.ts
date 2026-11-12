@@ -10,6 +10,7 @@ export function describeTelegramTransportError(error: unknown): string {
   const code = cause.code || value.code;
 
   if (value.name === 'AbortError') return 'Telegram API request was aborted';
+  if (value.name === 'TimeoutError') return 'Telegram API request timed out';
   if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
     return `Telegram API DNS lookup failed (${code})`;
   }
