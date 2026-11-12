@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
+import { verifyTelegramWebAppData } from './server/auth.ts';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { db, convertAmount } from './server/db.ts';
@@ -14,57 +15,6 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '15mb' }));
-
-/**
- * Validates Telegram WebApp initData string using HMAC-SHA256 according to official Telegram docs:
- * https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
- */
-export function verifyTelegramWebAppData(
-  initData: string,
-  botToken: string
-): { verified: boolean; user?: any; authDate?: number } {
-  if (!initData || !botToken) return { verified: false };
-
-  try {
-    const params = new URLSearchParams(initData);
-    const hash = params.get('hash');
-    const authDateRaw = params.get('auth_date');
-
-    if (!hash || !/^[a-f0-9]{64}$/i.test(hash) || !authDateRaw || !/^\d+$/.test(authDateRaw)) {
-      return { verified: false };
-    }
-
-    const authDate = Number(authDateRaw);
-    const now = Math.floor(Date.now() / 1000);
-    const maxAgeSeconds = 24 * 60 * 60;
-    if (!Number.isSafeInteger(authDate) || authDate > now + 300 || now - authDate > maxAgeSeconds) {
-      return { verified: false };
-    }
-
-    params.delete('hash');
-    const sortedKeys = Array.from(params.keys()).sort();
-    const dataCheckString = sortedKeys.map((key) => `${key}=${params.get(key)}`).join('\n');
-
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
-    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest();
-    const suppliedHash = Buffer.from(hash, 'hex');
-    const verified = suppliedHash.length === calculatedHash.length &&
-      crypto.timingSafeEqual(calculatedHash, suppliedHash);
-
-    if (!verified) return { verified: false };
-
-    const userStr = params.get('user');
-    const user = userStr ? JSON.parse(userStr) : undefined;
-    if (!user || !Number.isSafeInteger(Number(user.id)) || Number(user.id) <= 0) {
-      return { verified: false };
-    }
-
-    return { verified: true, user, authDate };
-  } catch (err) {
-    console.error('Telegram initData HMAC validation error:', err);
-    return { verified: false };
-  }
-}
 
 // Resolve the current user only from a server-issued session token.
 // Query tokens are retained only for the legacy one-click CSV download link.
