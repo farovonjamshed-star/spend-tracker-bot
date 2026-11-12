@@ -55,6 +55,11 @@ class Database {
       if (fs.existsSync(DB_FILE)) {
         const content = fs.readFileSync(DB_FILE, 'utf-8');
         this.data = JSON.parse(content);
+        // Revoke the historical public demo credential if it exists in an older data file.
+        if (this.data.sessions?.['demo-session-token']) {
+          delete this.data.sessions['demo-session-token'];
+          this.save();
+        }
       } else {
         this.seedInitialDemoData();
         this.save();
