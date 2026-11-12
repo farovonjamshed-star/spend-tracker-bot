@@ -63,7 +63,9 @@ export class TelegramService {
   private lastError: string | null = null;
 
   constructor() {
-    this.token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || db.getBotToken() || null;
+    // Keep the Telegram bot token in environment secrets, never in the JSON database.
+    this.token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || null;
+    db.setBotToken(null); // Remove any legacy plaintext token from older database files.
     this.appUrl = (process.env.APP_URL || 'https://spend-tracker-bot-v87h.onrender.com').replace(/\/$/, '');
     if (this.token) {
       this.initBot();
@@ -85,7 +87,6 @@ export class TelegramService {
   public async setToken(newToken: string) {
     this.stopPolling();
     this.token = newToken.trim() || null;
-    db.setBotToken(this.token);
     this.conflictDetected = false;
     this.consecutiveConflicts = 0;
     this.lastError = null;

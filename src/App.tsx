@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header.tsx';
 import { StatsCards } from './components/StatsCards.tsx';
 import { AnalyticsSection } from './components/AnalyticsSection.tsx';
@@ -35,12 +35,13 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [currency, setCurrency] = useState<string>('TJS');
   const [authToken, setAuthToken] = useState<string | null>(() => {
-    // Check URL params first
+    // Accept a short-lived handoff token from the bot, otherwise use the saved session.
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token');
-    if (urlToken) return urlToken;
-    return localStorage.getItem('expense_app_token') || 'demo-session-token';
+    return urlToken || localStorage.getItem('expense_app_token');
   });
+  const [authReady, setAuthReady] = useState(false);
+  const authInitializationStarted = useRef(false);
 
   // Navigation tab state: 5 tabs total (Overview, Analytics, Add, History, Settings)
   const [activeNavTab, setActiveNavTab] = useState<NavTab>('overview');
@@ -122,7 +123,20 @@ export default function App() {
 
   // Initialize and check Telegram WebApp
   useEffect(() => {
+    if (authInitializationStarted.current) return;
+    authInitializationStarted.current = true;
+
     const initAuth = async () => {
+      // Remove handoff credentials from the address bar before any auth branch can return.
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        params.delete('token');
+        const cleanQuery = params.toString();
+        window.history.replaceState({}, document.title,
+          window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '') + window.location.hash);
+      }
+
       // 1. If launched inside Telegram WebApp
       const tg = (window as any).Telegram?.WebApp;
       if (tg) {
@@ -146,6 +160,7 @@ export default function App() {
                 localStorage.setItem('expense_app_token', authData.token);
                 setAuthToken(authData.token);
                 setUser(authData.user);
+                setAuthReady(true);
                 return;
               }
             }
@@ -155,9 +170,7 @@ export default function App() {
         }
       }
 
-      // 2. Save token if in URL (?token=...)
-      const params = new URLSearchParams(window.location.search);
-      const urlToken = params.get('token');
+      // 2. Exchange the one-time handoff token for a server session.
       if (urlToken) {
         localStorage.setItem('expense_app_token', urlToken);
         setAuthToken(urlToken);
@@ -175,10 +188,16 @@ export default function App() {
           console.error(e);
         }
       }
+      setAuthReady(true);
     };
 
-    initAuth().then(() => fetchData());
-  }, [fetchData]);
+    void initAuth();
+  }, []);
+
+  // Load private data only after auth initialization has selected the active session.
+  useEffect(() => {
+    if (authReady && authToken) void fetchData();
+  }, [authReady, authToken, fetchData]);
 
   // Switch account
   const handleSwitchAccount = async (targetId: string, name?: string) => {
