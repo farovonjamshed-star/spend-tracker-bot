@@ -35,11 +35,10 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [currency, setCurrency] = useState<string>('TJS');
   const [authToken, setAuthToken] = useState<string | null>(() => {
-    // Check URL params first
+    // Accept a short-lived handoff token from the bot, otherwise use the saved session.
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token');
-    if (urlToken) return urlToken;
-    return localStorage.getItem('expense_app_token') || 'demo-session-token';
+    return urlToken || localStorage.getItem('expense_app_token');
   });
 
   // Navigation tab state: 5 tabs total (Overview, Analytics, Add, History, Settings)
@@ -161,6 +160,11 @@ export default function App() {
       if (urlToken) {
         localStorage.setItem('expense_app_token', urlToken);
         setAuthToken(urlToken);
+        // Remove the credential from the address bar and browser history as soon as it is consumed.
+        params.delete('token');
+        const cleanQuery = params.toString();
+        window.history.replaceState({}, document.title,
+          window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '') + window.location.hash);
         try {
           const verifyRes = await fetch('/api/auth/token', {
             method: 'POST',
