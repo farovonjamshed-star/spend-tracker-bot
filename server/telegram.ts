@@ -1,4 +1,5 @@
 import { db } from './db.ts';
+import { describeTelegramTransportError, getTelegramRetryDelay, shouldRetryTelegramInit } from './telegram-errors.ts';
 import { parseExpenseMessage, parseReceiptWithGemini, detectCategory, askExpenseAssistant } from './categorizer.ts';
 import { DEFAULT_CATEGORIES } from '../src/types.ts';
 import type { ParsedExpenseInput, Expense } from '../src/types.ts';
@@ -61,6 +62,11 @@ export class TelegramService {
   private conflictDetected: boolean = false;
   private consecutiveConflicts: number = 0;
   private lastError: string | null = null;
+  private connectionStatus: 'not_configured' | 'connecting' | 'connected' | 'error' = 'not_configured';
+  private lastConnectedAt: string | null = null;
+  private lastApiErrorCode: number | undefined;
+  private initRetryAttempt = 0;
+  private initRetryTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
     // Keep the Telegram bot token in environment secrets, never in the JSON database.
@@ -68,7 +74,8 @@ export class TelegramService {
     db.setBotToken(null); // Remove any legacy plaintext token from older database files.
     this.appUrl = (process.env.APP_URL || 'https://spend-tracker-bot-v87h.onrender.com').replace(/\/$/, '');
     if (this.token) {
-      this.initBot();
+      this.connectionStatus = 'connecting';
+      void this.initBot();
     }
   }
 
@@ -90,13 +97,17 @@ export class TelegramService {
     this.conflictDetected = false;
     this.consecutiveConflicts = 0;
     this.lastError = null;
+    this.lastApiErrorCode = undefined;
+    this.initRetryAttempt = 0;
 
     if (this.token) {
+      this.connectionStatus = 'connecting';
       await new Promise((r) => setTimeout(r, 600));
       await this.initBot();
     } else {
       this.botUsername = null;
       this.botFirstName = null;
+      this.connectionStatus = 'not_configured';
     }
   }
 
@@ -105,6 +116,9 @@ export class TelegramService {
     this.conflictDetected = false;
     this.consecutiveConflicts = 0;
     this.lastError = null;
+    this.lastApiErrorCode = undefined;
+    this.initRetryAttempt = 0;
+    this.connectionStatus = this.token ? 'connecting' : 'not_configured';
     await new Promise((r) => setTimeout(r, 1200));
     if (this.token) {
       await this.initBot();
@@ -114,6 +128,8 @@ export class TelegramService {
   public getStatus() {
     return {
       isConfigured: !!this.token,
+      connectionStatus: this.connectionStatus,
+      lastConnectedAt: this.lastConnectedAt || undefined,
       botUsername: this.botUsername || undefined,
       botName: this.botFirstName || undefined,
       botUrl: this.botUsername ? `https://t.me/${this.botUsername}` : undefined,
@@ -133,42 +149,75 @@ export class TelegramService {
       return { ok: false, error_code: 400, description: 'Token not set' };
     }
     try {
+      const timeoutSignal = AbortSignal.timeout(method === 'getUpdates' ? 15_000 : 10_000);
+      const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
       const response = await fetch(`https://api.telegram.org/bot${this.token}/${method}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        signal,
+        signal: requestSignal,
       });
       const data = await response.json();
       return data;
     } catch (e: any) {
-      if (e.name === 'AbortError') {
+      if (e?.name === 'AbortError' && signal?.aborted) {
         return { ok: false, error_code: 0, description: 'Aborted' };
       }
-      return { ok: false, error_code: 500, description: e.message || 'Network error' };
+      return { ok: false, error_code: 502, description: describeTelegramTransportError(e) };
     }
   }
 
   private async apiCall(method: string, body: Record<string, any> = {}, signal?: AbortSignal) {
     const data = await this.rawApiCall(method, body, signal);
     if (!data.ok) {
+      this.lastApiErrorCode = data.error_code;
       if (data.description !== 'Aborted') {
+        this.lastError = data.error_code === 401
+          ? 'Telegram token rejected (401 Unauthorized). Check that TELEGRAM_BOT_TOKEN is the latest token from BotFather.'
+          : data.description || `Telegram API request failed (${data.error_code ?? 'unknown'})`;
+        if (method === 'getMe') {
+          this.connectionStatus = 'error';
+        }
         if (data.error_code === 409 || data.description?.includes('Conflict')) {
           this.conflictDetected = true;
           this.lastError = data.description || 'Conflict with another bot instance';
         } else {
-          console.warn(`Telegram API error [${method}]:`, data.description);
+          console.warn(`Telegram API error [${method}]:`, this.lastError);
         }
       }
       return null;
     }
+    this.lastApiErrorCode = undefined;
+    if (method === 'getMe') {
+      this.connectionStatus = 'connected';
+      this.lastError = null;
+    }
     return data.result;
+  }
+
+  private scheduleInitRetry() {
+    if (this.initRetryTimeout || !this.token) return;
+    const delay = getTelegramRetryDelay(this.initRetryAttempt++);
+    this.connectionStatus = 'connecting';
+    console.warn(`[Telegram Bot] Initial connection failed; retrying in ${Math.round(delay / 1000)}s. ${this.lastError || ''}`);
+    this.initRetryTimeout = setTimeout(() => {
+      this.initRetryTimeout = null;
+      void this.initBot();
+    }, delay);
   }
 
   private async initBot() {
     try {
       const me = await this.apiCall('getMe');
       if (me) {
+        if (this.initRetryTimeout) {
+          clearTimeout(this.initRetryTimeout);
+          this.initRetryTimeout = null;
+        }
+        this.initRetryAttempt = 0;
+        this.connectionStatus = 'connected';
+        this.lastConnectedAt = new Date().toISOString();
+        this.lastError = null;
         this.botUsername = me.username;
         this.botFirstName = me.first_name;
         console.log(`Telegram bot connected as @${me.username} (${me.first_name})`);
@@ -197,10 +246,18 @@ export class TelegramService {
 
         this.startPolling();
       } else {
-        console.warn('Telegram bot token appears invalid or network is unreachable');
+        if (shouldRetryTelegramInit(this.lastApiErrorCode)) {
+          this.scheduleInitRetry();
+        } else {
+          this.connectionStatus = 'error';
+          console.error('[Telegram Bot] Initialization stopped. Check the token/configuration in Render.');
+        }
       }
     } catch (e) {
-      console.error('Error during initBot:', e);
+      this.lastError = describeTelegramTransportError(e);
+      this.connectionStatus = 'error';
+      console.error('[Telegram Bot] Initialization error:', this.lastError);
+      this.scheduleInitRetry();
     }
   }
 
@@ -212,6 +269,10 @@ export class TelegramService {
   }
 
   public stopPolling() {
+    if (this.initRetryTimeout) {
+      clearTimeout(this.initRetryTimeout);
+      this.initRetryTimeout = null;
+    }
     this.isPolling = false;
     this.pollSessionId++; // Invalidate active polling session
     if (this.pollTimeout) {
@@ -301,7 +362,8 @@ export class TelegramService {
         } else if (desc === 'Aborted') {
           return;
         } else {
-          nextDelay = 3000;
+          this.lastError = desc || 'Telegram polling request failed';
+          nextDelay = response.error_code && response.error_code >= 500 ? 5000 : 3000;
         }
       }
     } catch (e: any) {
